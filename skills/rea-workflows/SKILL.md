@@ -54,6 +54,46 @@ General loop for every target:
    artifact becomes its own target (native playbook, SQLite inspector, etc.).
 2. Keep the carve manifest as evidence so the report shows what was inside.
 
+## Go binary
+
+1. `inspect_go_binary <path>` first — it reads the embedded build info (Go version,
+   main module, dependency list with versions/checksums, build settings) **without
+   Ghidra**, so it is fast and works on stripped binaries (ELF, PE, thin Mach-O).
+2. Record the dependency list as evidence; it usually answers "what does this use"
+   (HTTP clients, crypto, DB drivers) before any decompilation.
+3. Then the native playbook: Go symbols are often present even when "stripped" of
+   DWARF; `search_strings` for `main.` / package paths maps functions quickly.
+
+## Rust binary
+
+1. `inspect_rust_binary <path>` — dependency/crate metadata recovered from the image
+   (no engine needed). Save as evidence.
+2. `search_strings` for `src/` paths and panic messages; they name crates and
+   source files and make `procedure_pseudo_code` targets obvious.
+3. Expect heavy inlining and monomorphised generics; prefer call-relationship tools
+   over reading every function.
+
+## Flutter / Dart app (APK)
+
+1. `identify_flutter_build <apk>` — confirms it is Flutter and which engine/ABI.
+2. `inspect_dart_aot <apk> [--abi armeabi-v7a|arm64-v8a]` — Dart AOT snapshot
+   metadata and symbol/string inventory. Dart AOT is **not** Java: jadx shows only the
+   thin Android shell, so do not spend time decompiling Java classes.
+3. Native plugins (`lib/*/lib*.so`) still follow the native playbook. APK reads are
+   bounded at 2 GiB.
+
+## WebAssembly artifact
+
+1. Needs caller-supplied **WABT 1.0.42**: set `REA_WABT_BIN_DIRECTORY` to its `bin/`
+   (put it under `env` in `~/.rea-plugin.json`). On the cloud container,
+   `apt install wabt` may give a different version — check `/rea:doctor` reports it.
+2. `inspect_wasm_artifact <file.wasm>` — imports, exports, memories, tables and
+   sections; this is the module's interface contract. Save as evidence.
+3. "What changed between builds": `compare_wasm_interfaces` on two inspection
+   results, then `/rea:report --diff` on the saved evidence directories.
+4. For wasm shipped inside a web bundle, run the Electron/JavaScript playbook first
+   to find how the module is instantiated and which exports are called.
+
 ## Web target (live page)
 
 1. Capture with a bounded browser scenario; prefer passive capture first.

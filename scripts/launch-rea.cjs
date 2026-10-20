@@ -166,10 +166,14 @@ function main() {
     command = 'wsl.exe';
     args = [...(distro ? ['-d', distro] : []), '--', 'bash', '-lc', inner];
     log(`starting REA ${version} inside WSL${distro ? ` (${distro})` : ''}`);
-  } else if (clean(config.rea_command)) {
-    // e.g. "rea" for a global install, or an absolute path to rea.mjs
-    command = clean(config.rea_command);
-    args = reaArgs;
+  } else if (clean(env.REA_PLUGIN_REA_COMMAND) || clean(config.rea_command)) {
+    // "rea" for a global install, or a path to rea.mjs (e.g. the copy bundled in a .mcpb).
+    // A .mjs/.js path is run with this same Node binary so no PATH lookup is needed.
+    const rc = clean(env.REA_PLUGIN_REA_COMMAND) || clean(config.rea_command);
+    delete env.REA_PLUGIN_REA_COMMAND;
+    if (/\.(mjs|cjs|js)$/i.test(rc)) { command = process.execPath; args = [rc, ...reaArgs]; }
+    else { command = rc; args = reaArgs; }
+    log(`starting REA via ${rc}`);
   } else {
     command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
     args = ['-y', `rea-agents@${version}`, ...reaArgs];
@@ -178,7 +182,7 @@ function main() {
   const child = spawn(command, args, {
     env,
     stdio: 'inherit',
-    shell: process.platform === 'win32' && !useWsl,
+    shell: process.platform === 'win32' && !useWsl && command !== process.execPath,
   });
   child.on('error', (err) => {
     log(`failed to start ${command}: ${err.message}`);

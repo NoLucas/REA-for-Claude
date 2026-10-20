@@ -3,3 +3,7 @@ node_modules/
 remote/targets/
 *.log
 .DS_Store
+dist/
+desktop/.stage/
+rea-evidence/
+rea-reports/

@@ -1,0 +1,63 @@
+# REA appliance behind the OAuth 2.1 gateway (login page instead of a path secret).
+#
+#   cd remote
+#   export GATEWAY_PASSWORD='a long passphrase you will type on the login page'   # >= 12 chars
+#   export REA_UPSTREAM_API_KEY=$(openssl rand -hex 24)                           # internal, never shared
+#   docker compose -f docker-compose.oauth.yml up --build
+#
+# First run prints a https://<random>.trycloudflare.com URL in the tunnel log. Because the
+# gateway must know its own public URL (OAuth issuer), set it and restart once:
+#   export PUBLIC_URL=https://<random>.trycloudflare.com
+#   docker compose -f docker-compose.oauth.yml up -d
+# (A named Cloudflare tunnel gives you a stable hostname so this is a one-time step.)
+#
+# Then add  https://<host>/mcp  in claude.ai → Settings → Connectors → Add custom connector.
+# claude.ai discovers the OAuth metadata, registers itself, sends you to the login page,
+# and you type GATEWAY_PASSWORD once. Tokens rotate; revoke everything by restarting the
+# gateway (or delete STATE_FILE).
+
+services:
+  rea:
+    build:
+      context: ..
+      dockerfile: remote/Dockerfile
+    image: rea-appliance
+    environment:
+      REA_UPSTREAM_API_KEY: ${REA_UPSTREAM_API_KEY:?set an internal key, e.g. $(openssl rand -hex 24)}
+      PORT: "8765"
+    volumes:
+      - ./targets:/targets
+    expose: ["8765"]          # private network only; no host port
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+    restart: unless-stopped
+
+  gateway:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "/app/gateway.mjs"]
+    volumes:
+      - ./oauth-gateway:/app:ro
+      - gateway-state:/state
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      GATEWAY_PASSWORD: ${GATEWAY_PASSWORD:?set a passphrase (12+ chars) for the login page}
+      UPSTREAM_MCP_URL: http://rea:8765/mcp
+      UPSTREAM_API_KEY: ${REA_UPSTREAM_API_KEY}
+      ALLOWED_REDIRECT_HOSTS: claude.ai,claude.com
+      TOKEN_TTL_SECONDS: "3600"
+      STATE_FILE: /state/gateway.json
+      PORT: "8080"
+    depends_on: [rea]
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://gateway:8080
+    depends_on: [gateway]
+    restart: unless-stopped
+
+volumes:
+  gateway-state:

@@ -1,0 +1,49 @@
+{
+  "evidence_id": "ev_d2a6690ebdfa2c9873f27...",
+  "subject": {
+    "name": "sample-true",
+    "digest": {
+      "sha256": "8a63c98320173f79e263115e10cefc170155e47d1fd4b5a70e4429d2699cae28"
+    },
+    "local_path": "/home/claude/sample-true",
+    "format": "elf",
+    "architecture": "x86_64"
+  },
+  "provider": {
+    "id": "rea-workflow",
+    "name": "REA composed investigation workflow",
+    "version": "1"
+  },
+  "predicate_type": "rea.analysis",
+  "operation": "binary_overview",
+  "confidence": "derived",
+  "normalized_result": {
+    "document": "target-8a63c9832017.bin",
+    "image_base": "0x100000",
+    "segment_count": 32,
+    "procedure_count": 133,
+    "string_count": 122,
+    "segments": [
+      {
+        "name": "segment_2.1",
+        "start": "0x100000",
+        "end": "0x100318",
+        "length": 792,
+        "image_base": "0x100000",
+        "address_space": "ram"
+      },
+      {
+        "name": ".interp",
+        "start": "0x100318",
+        "end": "0x100334",
+        "length": 28,
+        "image_base": "0x100000",
+        "address_space": "ram"
+      }
+    ]
+  },
+  "limitations": [
+    "Derived by an REA composed workflow.",
+    "Ghidra (ghidra 12.1.4) read_binary_inventory_summary: Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again."
+  ]
+}

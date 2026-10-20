@@ -21,5 +21,8 @@
   "limitations": [
     "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
     "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written."
-  ]
+  ],
+  "parameters": {
+    "procedure": "0x19f0"
+  }
 }

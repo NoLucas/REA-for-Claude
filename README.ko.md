@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="Plugin 0.3.0" src="https://img.shields.io/badge/plugin-0.3.0-7b4bd8">
+  <img alt="Plugin 0.4.0" src="https://img.shields.io/badge/plugin-0.4.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933">
@@ -109,6 +109,9 @@ claude.ai → Settings → Connectors → *Add custom connector*에 `https://<�
 | ⚙️ **엔진 자동 설치** | Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1, apt 도구 묶음이 Linux에서 백그라운드로 알아서 설치됩니다. 엔진별 선택 가능. |
 | 🧭 **가이드 워크플로** | `/rea:analyze`가 대상 유형(네이티브 바이너리·APK·Electron/JS·펌웨어·웹 번들)별 플레이북을 골라 조사하며 증거를 모읍니다. |
 | 📄 **공유용 리포트** | `/rea:report`가 REA evidence를 독립 실행 HTML(라이트/다크) 또는 Markdown 리포트로 만듭니다 — 디컴파일 코드, 개요, provider, confidence, limitations. 의존성 0. |
+| 🔀 **evidence diff** | `/rea:report --diff <before> <after>`로 두 빌드를 비교: 개요 필드 변화, 추가/삭제된 프로시저·문자열·세그먼트, 디컴파일 코드 라인 diff. |
+| 🖥️ **원클릭 데스크톱 확장** | `desktop/build-mcpb.sh` / `.ps1`이 REA를 엔진 경로 설정 패널이 달린 `.mcpb`로 묶습니다. Claude Desktop 내장 Node를 써서 별도 설치 불필요. |
+| 🔐 **OAuth 보호 원격** | `remote/docker-compose.oauth.yml`이 의존성 없는 OAuth 2.1 게이트웨이(DCR + PKCE + 로그인 페이지)를 붙여, 경로 비밀 없이 claude.ai 커스텀 커넥터로 쓸 수 있습니다. |
 | 🎛️ **사용자 설정** | `~/.rea-plugin.json`: 엔진 경로, 설치할 엔진, 리포트 형식/경로, WSL 모드, REA 버전, env 통과. 빈 값은 무시. |
 | 🧪 **테스트** | `scripts/selftest.sh` + GitHub Actions: 매니페스트 구조, 셸/노드 문법, 리포트 픽스처, 그리고 서버를 실제로 띄워 207툴을 확인하는 라이브 MCP 스모크. |
 | 🪟 **Windows 고려** | PE 대상은 네이티브 Windows로, 전체 Linux 도구는 `use_wsl`로. `userConfig`에 의존하지 않아 Claude Desktop이 서버를 직접 띄울 수 있습니다. |
@@ -142,6 +145,7 @@ flowchart LR
 |---|---|
 | `/rea:analyze <경로> [목표]` | 가이드 조사: 대상 유형 판별 → 맞는 플레이북 실행 → 모든 결과를 `./rea-evidence/*.json`에 저장 |
 | `/rea:report [디렉터리] [--format html\|md\|both]` | 저장된 evidence로 공유용 리포트 생성(설정의 `report.*` 반영) |
+| `/rea:report --diff <before> <after>` | 두 evidence 세트(같은 앱의 두 빌드)를 비교한 변경 리포트 |
 | `/rea:doctor` | MCP 서버 상태, 엔진별 가용 여부, 빠진 엔진의 정확한 해결법 |
 | `/rea:capabilities` | 이 호스트에서 *지금* 가능한 REA 기능을 대상 유형별로 정리 |
 | `/rea:install-engines` | Linux 엔진 설치기(멱등, 선택형) |
@@ -149,7 +153,7 @@ flowchart LR
 | 스킬 | 용도 |
 |---|---|
 | `reverse-engineer-anything` | REA 공식 207툴 레퍼런스와 복구 가이드(MIT, 동봉) |
-| `rea-workflows` | 유형별 플레이북: 네이티브 ELF/PE/Mach-O, Android APK, Electron/JS, 펌웨어, 웹 |
+| `rea-workflows` | 유형별 플레이북: 네이티브 ELF/PE/Mach-O, Android APK, Electron/JS, 펌웨어, 웹, **Go, Rust, Flutter/Dart, WebAssembly** |
 | `rea-anywhere` | 환경별 운영 노트: 클라우드 자동 설치, `provider_unavailable`, 파일 위치 |
 
 ## 🎛️ 설정
@@ -207,13 +211,14 @@ Anthropic 클라우드 컨테이너(Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21)에서 �
 scripts/
   launch-rea.cjs       범용 런처
   install-engines.sh   Linux 설치기 (Ghidra, jadx, apt) — 멱등, 선택형
-  make-report.mjs      REA evidence → HTML/Markdown 리포트
+  make-report.mjs      REA evidence → HTML/Markdown 리포트, --diff 포함
   selftest.sh          오프라인 점검 + 라이브 MCP 스모크 (CI가 사용)
   rea-config.example.json
+desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1  (Claude Desktop .mcpb)
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
 commands/              analyze · report · doctor · capabilities · install-engines
 tests/fixtures/        소형 REA evidence 샘플
-remote/                Dockerfile · docker-compose.yml (Cloudflare 터널) · README
+remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/ · README
 .github/workflows/     ci.yml
 ```
 
@@ -233,11 +238,14 @@ remote/                Dockerfile · docker-compose.yml (Cloudflare 터널) · R
 
 ## 🗺️ 로드맵
 
-- [ ] npm에 네이티브 `rea mcp --http`가 올라오면 원격 어플라이언스를 그것으로 전환
-- [ ] Claude Desktop 원클릭 설치용 `.mcpb` 데스크톱 확장 빌드 스크립트
-- [ ] 원격 어플라이언스용 OAuth 게이트웨이 레시피
-- [ ] 리포트 diff: 두 evidence 세트 비교(같은 앱의 두 빌드)
-- [ ] 플레이북 추가(Go/Rust 바이너리, Flutter, WASM)
+- [x] 원격 어플라이언스가 설치된 REA가 네이티브 `rea mcp --http`를 지원하면(REA `main`) 자동 선택; npm 6.7.0에선 supergateway 브리지
+- [x] `.mcpb` 데스크톱 확장 빌드(`desktop/build-mcpb.sh` / `.ps1`) — Linux 번들은 여기서 빌드·부팅 확인; Windows/macOS는 해당 OS에서 빌드
+- [x] 원격 어플라이언스용 OAuth 2.1 게이트웨이(`remote/oauth-gateway`, `docker-compose.oauth.yml`) — 실제 REA 브리지 상대로 검증
+- [x] evidence diff(`/rea:report --diff`)
+- [x] Go, Rust, Flutter/Dart, WebAssembly 플레이북
+- [ ] claude.ai 자체 커넥터 클라이언트로 OAuth 게이트웨이 검증(공개 호스트 필요)
+- [ ] GitHub Actions 매트릭스(win32 / darwin / linux)로 서명된 `.mcpb` 릴리스
+- [ ] 리포트 테마와 후속 도구용 JSON 내보내기
 
 ## 🤝 기여하기
 

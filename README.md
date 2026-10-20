@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="Plugin 0.3.0" src="https://img.shields.io/badge/plugin-0.3.0-7b4bd8">
+  <img alt="Plugin 0.4.0" src="https://img.shields.io/badge/plugin-0.4.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933">
@@ -110,6 +110,9 @@ Add `https://<tunnel>/<REA_PATH_SECRET>/mcp` under claude.ai → Settings → Co
 | ⚙️ **Self-installing engines** | Ghidra 12.1.4 (SHA-256 verified), jadx-headless-mcp 0.7.1 and the apt toolset install themselves on Linux — in the background, selectable per engine. |
 | 🧭 **Guided workflows** | `/rea:analyze` picks a playbook per target type (native binary, APK, Electron/JS, firmware, web bundle) and collects evidence as it goes. |
 | 📄 **Shareable reports** | `/rea:report` renders REA evidence into a self-contained HTML (light/dark) or Markdown report — decompiled code, overviews, provider, confidence, limitations. Zero dependencies. |
+| 🔀 **Evidence diffs** | `/rea:report --diff <before> <after>` compares two builds: changed overview fields, added/removed procedures, strings and segments, and a line diff of decompiled code. |
+| 🖥️ **One-click desktop extension** | `desktop/build-mcpb.sh` / `.ps1` bundles REA into a `.mcpb` with a settings panel for engine paths; uses Claude Desktop's built-in Node, no install needed. |
+| 🔐 **OAuth-protected remote** | `remote/docker-compose.oauth.yml` adds a dependency-free OAuth 2.1 gateway (DCR + PKCE + login page) so the appliance can be a claude.ai custom connector without a path secret. |
 | 🎛️ **User-configurable** | `~/.rea-plugin.json`: engine paths, which engines to install, report format/dir, WSL mode, REA version, env passthrough. Blank values are ignored. |
 | 🧪 **Tested** | `scripts/selftest.sh` + GitHub Actions: manifest shape, shell/node syntax, report fixtures, and a live MCP smoke that boots the server and asserts 207 tools. |
 | 🪟 **Windows-aware** | Native Windows for PE targets; `use_wsl` for the full Linux toolset. No `userConfig` dependency, so Claude Desktop can start the server itself. |
@@ -143,6 +146,7 @@ flowchart LR
 |---|---|
 | `/rea:analyze <path> [goal]` | Guided investigation: detect target type, run the matching playbook, save every result to `./rea-evidence/*.json` |
 | `/rea:report [dir] [--format html\|md\|both]` | Build the shareable report from saved evidence (honours `report.*` in your config) |
+| `/rea:report --diff <before> <after>` | Diff two evidence sets (two builds of the same app) into a change report |
 | `/rea:doctor` | Is the MCP server healthy? Which engines are available, and the exact fix for missing ones |
 | `/rea:capabilities` | What REA can do *right now* on this host, grouped by target type |
 | `/rea:install-engines` | Linux engine installer (idempotent, selectable) |
@@ -150,7 +154,7 @@ flowchart LR
 | Skill | Purpose |
 |---|---|
 | `reverse-engineer-anything` | REA's official 207-tool reference and recovery guide (MIT, vendored) |
-| `rea-workflows` | Per-target playbooks: native ELF/PE/Mach-O, Android APK, Electron/JS, firmware, web |
+| `rea-workflows` | Per-target playbooks: native ELF/PE/Mach-O, Android APK, Electron/JS, firmware, web, **Go, Rust, Flutter/Dart, WebAssembly** |
 | `rea-anywhere` | Operating notes per environment: cloud auto-install, `provider_unavailable`, where files live |
 
 ## 🎛️ Configuration
@@ -208,13 +212,14 @@ Measured in an Anthropic cloud container (Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21):
 scripts/
   launch-rea.cjs       universal launcher
   install-engines.sh   Linux installer (Ghidra, jadx, apt) — idempotent, selectable
-  make-report.mjs      REA evidence → HTML/Markdown report
+  make-report.mjs      REA evidence → HTML/Markdown report, plus --diff
   selftest.sh          offline checks + live MCP smoke (used by CI)
   rea-config.example.json
+desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1  (Claude Desktop .mcpb)
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
 commands/              analyze · report · doctor · capabilities · install-engines
 tests/fixtures/        small REA evidence samples
-remote/                Dockerfile · docker-compose.yml (Cloudflare tunnel) · README
+remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/ · README
 .github/workflows/     ci.yml
 ```
 
@@ -234,11 +239,14 @@ remote/                Dockerfile · docker-compose.yml (Cloudflare tunnel) · R
 
 ## 🗺️ Roadmap
 
-- [ ] Switch the remote appliance to native `rea mcp --http` once it ships on npm
-- [ ] `.mcpb` desktop-extension build script for one-click Claude Desktop install
-- [ ] Optional OAuth gateway recipe for the remote appliance
-- [ ] Report diffs: compare two evidence sets (two builds of the same app)
-- [ ] More playbooks (Go/Rust binaries, Flutter, WASM)
+- [x] Remote appliance auto-selects native `rea mcp --http` when the installed REA supports it (REA `main`); bridges with supergateway on npm 6.7.0
+- [x] `.mcpb` desktop-extension build (`desktop/build-mcpb.sh` / `.ps1`) — Linux bundle built and booted here; build on Windows/macOS for those platforms
+- [x] OAuth 2.1 gateway for the remote appliance (`remote/oauth-gateway`, `docker-compose.oauth.yml`) — verified against a live REA bridge
+- [x] Evidence diffs (`/rea:report --diff`)
+- [x] Playbooks for Go, Rust, Flutter/Dart and WebAssembly
+- [ ] Verify the OAuth gateway against claude.ai's own connector client (needs a public host)
+- [ ] Signed `.mcpb` releases via GitHub Actions matrix (win32 / darwin / linux)
+- [ ] Report themes and a JSON export for downstream tooling
 
 ## 🤝 Contributing
 

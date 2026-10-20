@@ -1,0 +1,72 @@
+{
+  "manifest_version": "0.3",
+  "name": "rea-for-claude",
+  "display_name": "REA — Reverse Engineer Anything",
+  "version": "0.4.0",
+  "description": "REA's 207 reverse-engineering tools as a one-click Claude Desktop extension. Bundles rea-agents 6.7.0; point it at your Ghidra / jadx / Kuna / IDA installs from the settings panel.",
+  "long_description": "Runs the REA (Reverse Engineer Anything) MCP server inside Claude Desktop using the app's built-in Node runtime, so no Node.js install is required. Analysis engines (Ghidra 12.1.4, jadx-headless-mcp 0.7.1, Kuna, IDA) are not bundled: install the ones you need and select their paths in the extension settings. Blank settings are ignored. Sessions linked to this computer can use the tools from claude.ai on the web and your phone.",
+  "author": {
+    "name": "NoLucas",
+    "url": "https://github.com/NoLucas/REA-for-Claude"
+  },
+  "homepage": "https://github.com/NoLucas/REA-for-Claude",
+  "documentation": "https://github.com/NoLucas/REA-for-Claude#readme",
+  "support": "https://github.com/NoLucas/REA-for-Claude/issues",
+  "license": "MIT",
+  "keywords": ["reverse-engineering", "ghidra", "jadx", "security", "decompile", "mcp"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/launch-rea.cjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/launch-rea.cjs"],
+      "env": {
+        "REA_PLUGIN_REA_COMMAND": "${__dirname}/server/node_modules/rea-agents/scripts/rea.mjs",
+        "REA_PLUGIN_GHIDRA_INSTALL_DIR": "${user_config.ghidra_install_dir}",
+        "REA_PLUGIN_JADX_MCP_JAR": "${user_config.jadx_mcp_jar}",
+        "REA_PLUGIN_KUNA_COMMAND": "${user_config.kuna_command}",
+        "REA_PLUGIN_IDA_MCP_CONFIG": "${user_config.ida_mcp_config}",
+        "REA_GHIDRA_STARTUP_TIMEOUT_MS": "${user_config.ghidra_timeout_ms}"
+      }
+    }
+  },
+  "user_config": {
+    "ghidra_install_dir": {
+      "type": "directory",
+      "title": "Ghidra install directory",
+      "description": "Extracted Ghidra 12.1.x folder (contains support/analyzeHeadless). Leave empty if you don't use Ghidra.",
+      "required": false
+    },
+    "jadx_mcp_jar": {
+      "type": "file",
+      "title": "jadx-headless-mcp JAR",
+      "description": "jadx-headless-mcp-0.7.1-all.jar for Android APK analysis. Leave empty if unused.",
+      "required": false
+    },
+    "kuna_command": {
+      "type": "file",
+      "title": "Kuna executable",
+      "description": "Path to the kuna executable (verified with 1.833). Leave empty if unused.",
+      "required": false
+    },
+    "ida_mcp_config": {
+      "type": "file",
+      "title": "IDA MCP registration JSON",
+      "description": "Your upstream IDA MCP registration JSON. Leave empty if unused.",
+      "required": false
+    },
+    "ghidra_timeout_ms": {
+      "type": "number",
+      "title": "Ghidra startup timeout (ms)",
+      "description": "Raise for large binaries.",
+      "required": false,
+      "default": 600000,
+      "min": 1000
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=22.0.0" }
+  }
+}
