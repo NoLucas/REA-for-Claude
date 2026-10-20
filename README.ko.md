@@ -1,179 +1,257 @@
 <p align="right"><a href="README.md">English</a> | <b>한국어</b></p>
 
-# REA for Claude — Reverse Engineer Anything, 어디서든
+<h1 align="center">REA for Claude</h1>
 
-[REA (Reverse Engineer Anything)](https://github.com/morluto/rea)를 **Claude가 실행되는 모든 곳**에서
-쓸 수 있게 포장한 플러그인입니다. 원본 REA는 "로컬 stdio MCP 서버 + 로컬 분석 엔진" 구조라
-Claude Code 터미널에서만 쓰는 게 전제였는데, 이 저장소는 그 전제를 네 가지 방식으로 풀어냅니다.
+<p align="center">
+  <b>Reverse Engineer Anything — Claude가 있는 모든 곳에서.</b><br>
+  <a href="https://github.com/morluto/rea">REA</a>의 리버스 엔지니어링 툴 207개를 Claude Code, Claude Desktop,
+  그리고 <b>Ghidra가 알아서 설치되는 claude.ai 클라우드 세션</b>에서 쓰고, 결과를 공유용 리포트로 만드세요.
+</p>
 
-| 실행 위치 | 동작 방식 | PC 필요 | 검증 |
-|---|---|---|---|
-| **claude.ai 클라우드 세션** (웹·폰·claude.ai/code) | 이 저장소를 세션에 붙이면 `.mcp.json`으로 REA가 컨테이너 안에서 뜨고, **Ghidra 12.1.4·jadx가 자동 설치**됨 | ✗ | ✅ 실제 세션에서 Ghidra 디컴파일까지 확인 |
-| **Claude Desktop + 연결된 claude.ai 세션** | REA가 PC에서 돌고, 데스크톱 앱이 툴을 세션으로 중계. 폰에서도 이어서 사용 가능 | ✓ (켜져 있어야) | ⚠️ REA 팀이 Windows 11에서 검증한 경로를 그대로 사용 |
-| **로컬 Claude Code** | 플러그인 설치 또는 `.mcp.json` | ✓ | ✅ |
-| **원격 어플라이언스** (Docker + 터널 → 커스텀 커넥터) | 항상 켜진 서버에 REA+엔진을 굽고 HTTPS로 노출 | 서버 | ⚠️ 구성 요소는 각각 검증, docker build는 미실행 |
+<p align="center">
+  <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <img alt="Plugin 0.3.0" src="https://img.shields.io/badge/plugin-0.3.0-7b4bd8">
+  <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
+  <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
+  <img alt="Node 22+" src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933">
+</p>
 
-> 리버스 엔지니어링은 대상 소프트웨어의 라이선스·약관과 현지 법을 따르세요. REA 원본의
-> [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md)를 읽어 보세요.
+<p align="center">
+  <a href="#-빠른-시작">빠른 시작</a> ·
+  <a href="#-기능">기능</a> ·
+  <a href="#-동작-원리">동작 원리</a> ·
+  <a href="#-커맨드--스킬">커맨드</a> ·
+  <a href="#-설정">설정</a> ·
+  <a href="#-faq">FAQ</a> ·
+  <a href="#-기여하기">기여</a>
+</p>
 
 ---
 
-## 1. claude.ai 클라우드 세션에서 쓰기 (PC 불필요)
+## 왜 만들었나
 
-가장 "REA보다 나은" 경로입니다. Anthropic 클라우드 컨테이너(Ubuntu 24.04, JDK 21 내장)에서
-REA와 Ghidra가 돌고, 폰에서도 그대로 이어집니다.
+원본 REA는 로컬 stdio MCP 서버이고 로컬에 설치된 엔진(Ghidra, jadx, IDA…)에 의존합니다.
+그래서 기본적으로 Claude Code 터미널 전용 도구가 되죠. **REA for Claude**는 그 전제를 없앱니다.
 
-1. 이 저장소를 본인 GitHub에 올립니다(비공개 가능).
-2. [claude.ai/code](https://claude.ai/code)에서 이 저장소로 새 세션을 시작하거나, 일반 채팅에서
-   저장소를 세션에 추가합니다.
-3. 세션이 시작되면 `.claude/settings.json`의 SessionStart 훅이 **백그라운드로** 엔진을 설치하고
-   (`~/.rea-engines`, 약 1~3분, 로그 `~/.rea-engines/install.log`), `.mcp.json`이 REA 서버를
-   즉시 띄웁니다. Ghidra가 필요한 툴은 설치가 끝난 뒤 `open_binary`를 다시 호출하면 됩니다 —
-   REA가 프로바이더를 호출 시점에 다시 찾기 때문에 재시작이 필요 없습니다.
-4. 분석할 파일은 저장소에 커밋하거나 세션에 첨부하세요. 절대경로로 `open_binary`합니다.
+| 세션이 도는 곳 | 어떻게 되나 | PC 필요 | 상태 |
+|---|---|:---:|:---:|
+| **claude.ai 클라우드 세션** (웹 · 모바일 · claude.ai/code) | 이 저장소를 붙이면 컨테이너 안에서 REA가 뜨고, **Ghidra 12.1.4 + jadx가 백그라운드로 자동 설치** | ✗ | ✅ 엔드투엔드 검증 |
+| **Claude Desktop + 연결된 claude.ai 세션** | REA는 PC에서 돌고 데스크톱 앱이 툴을 중계 → 폰에서 이어서 사용 가능 | ✓ | ⚠️ REA 팀의 Windows 11 검증 경로 사용 |
+| **로컬 Claude Code** | 플러그인 또는 `.mcp.json` | ✓ | ✅ |
+| **원격 어플라이언스** (Docker + 터널 → 커스텀 커넥터) | REA + 엔진을 Linux 컨테이너에 굽고 HTTPS로 노출 | 서버 | ⚠️ 부품은 검증, 이미지 빌드는 미실행 |
 
-**더 빠르게 (권장):** claude.ai/code → 환경(Environment) 설정에서
-- Setup script: `bash scripts/install-engines.sh`
-- 환경변수: `GHIDRA_INSTALL_DIR=/root/.rea-engines/ghidra_12.1.4_PUBLIC`,
-  `REA_JADX_MCP_JAR=/root/.rea-engines/jadx-headless-mcp-0.7.1-all.jar`
+> **법적 안내.** 리버스 엔지니어링은 대상의 라이선스·약관·현지 법을 따라야 합니다.
+> 사용 전 REA 원본의 [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md)를 읽어 주세요.
 
-로 두면 세션 시작 전에 설치가 끝나고 결과가 캐시됩니다(홈 경로는 환경에 따라 `/home/…`일 수
-있으니 첫 세션에서 `echo $HOME`으로 확인). 네트워크 접근 수준은 기본 **Trusted**면 됩니다
-(github.com, release-assets.githubusercontent.com, archive.ubuntu.com 사용).
+## ⚡ 빠른 시작
 
-측정값: 2 vCPU 컨테이너에서 설치 1분 46초, 작은 ELF 디컴파일 호출당 약 20초.
+<details open>
+<summary><b>클라우드 세션 (PC 불필요) — 권장</b></summary>
 
-## 2. Claude Desktop (+ 연결된 claude.ai 세션)
+1. 이 저장소를 포크하거나 본인 GitHub에 올립니다(비공개 가능).
+2. [claude.ai/code](https://claude.ai/code)에서 이 저장소로 세션을 시작하거나, 채팅에 저장소를 붙입니다.
+3. 이렇게 물어보세요: *"`./samples/app.bin` 분석해서 뭘 하는 프로그램인지 알려줘."*
 
-PC에서 REA를 돌리고 데스크톱 앱이 툴을 중계하는 방식입니다. 세션을 PC에 연결해 두면 폰에서
-이어서 써도 REA 툴이 그대로 보입니다(PC와 데스크톱 앱이 켜져 있어야 함).
+내부 동작: `.mcp.json`이 REA를 즉시 띄우고, `SessionStart` 훅이 `~/.rea-engines`에 Ghidra + jadx를
+설치합니다(약 2분). 툴이 `provider_unavailable`을 돌려주면 `~/.rea-engines/install.done`이 생길 때까지
+기다렸다가 `open_binary`를 다시 호출하세요 — REA는 호출 시점에 엔진을 찾으므로 재시작이 필요 없습니다.
 
-```powershell
-# 1) Node.js 22/24 설치 후, Claude Desktop을 완전히 종료(트레이까지)하고 일반 터미널에서:
-npx rea-agents@6.7.0 setup --client claude_desktop
-# 2) Claude Desktop 재시작 → 설정 > 개발자 탭에서 rea 서버가 떠 있는지 확인
-```
+**기다림 없이 쓰려면:** claude.ai/code 환경 설정에
+`Setup script = bash scripts/install-engines.sh`,
+`GHIDRA_INSTALL_DIR=/root/.rea-engines/ghidra_12.1.4_PUBLIC`,
+`REA_JADX_MCP_JAR=/root/.rea-engines/jadx-headless-mcp-0.7.1-all.jar`를 넣어 두세요.
+</details>
 
-엔진 경로는 `%USERPROFILE%\.rea-plugin.json`(아래 설정 파일 참고) 대신 시스템 환경변수
-(`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`)로 주는 편이 REA 공식 setup과 잘 맞습니다.
-이 플러그인의 런처를 쓰고 싶으면 `claude_desktop_config.json`의 `rea` 항목을
-`node <저장소>/scripts/launch-rea.cjs`로 바꾸면 되고, 그러면 설정 파일과 WSL 모드가 활성화됩니다.
-
-**Windows 한계와 WSL:** 네이티브 Windows REA는 Ghidra x86/x64/ARM PE 대상과 엔진 불필요
-프로바이더를 지원하고, binwalk·tshark·mitmproxy 같은 Linux 전용 도구는 못 씁니다.
-`~/.rea-plugin.json`에 `"use_wsl": true`를 주면 런처가 `wsl.exe` 안에서 REA를 실행해
-Linux 도구를 모두 쓸 수 있습니다(이때 엔진 경로는 Linux 경로). WSL 안에서는
-`bash scripts/install-engines.sh`로 엔진을 한 번에 설치할 수 있습니다.
-
-> Claude Desktop에 claude.ai 플러그인으로 설치할 때 데스크톱 앱이 플러그인의 MCP 서버를
-> 직접 띄우는 경우에 대비해, 이 플러그인의 서버 정의는 **사용자 설정(userConfig)에 의존하지
-> 않습니다**(데스크톱은 플러그인 설정값을 공급하지 못해 서버가 시작되지 않음). 모든 설정은
-> 환경변수·`~/.rea-plugin.json`·자동 탐색으로 해결됩니다.
-
-## 3. 로컬 Claude Code
+<details>
+<summary><b>로컬 Claude Code</b></summary>
 
 ```bash
 claude plugin marketplace add NoLucas/REA-for-Claude
 claude plugin install rea@rea-for-claude
-# 또는 저장소를 클론해서
+# 또는 클론해서
 claude --plugin-dir ./REA-for-Claude
 ```
+그 다음 `/rea:doctor`. Linux면 `/rea:install-engines`가 엔진까지 받아 줍니다.
+</details>
 
-그 다음 `/rea:doctor`. Linux면 `/rea:install-engines`로 엔진까지 설치됩니다.
+<details>
+<summary><b>Claude Desktop (Windows / macOS) + PC에 연결된 세션</b></summary>
 
-## 4. 원격 어플라이언스 (어디서든, PC 꺼져도)
+```powershell
+# Node.js 22/24 설치 후, Claude Desktop을 완전히 종료(트레이까지)하고 일반 터미널에서:
+npx rea-agents@6.7.0 setup --client claude_desktop
+# Claude Desktop 재시작 → 설정 › 개발자 탭에 "rea"가 보이면 성공
+```
+엔진 경로는 시스템 환경변수(`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`)로 지정하세요.
+이 플러그인의 런처(설정 파일 + WSL 모드)를 쓰려면 `claude_desktop_config.json`의 `rea` 항목을
+`node <저장소>/scripts/launch-rea.cjs`로 바꾸면 됩니다.
+Windows 팁: `~/.rea-plugin.json`에 `"use_wsl": true`를 주면 REA가 WSL 안에서 실행돼
+Linux 전용 도구(binwalk, tshark, mitmproxy)까지 쓸 수 있습니다.
+</details>
 
-`remote/`의 Dockerfile·docker-compose가 REA + Ghidra + jadx + radare2/binwalk/tshark/apktool을
-Linux 컨테이너에 굽고 Streamable HTTP로 노출합니다. Cloudflare 터널을 붙여 claude.ai
-**Settings → Connectors → Add custom connector**에 URL을 넣으면 웹·폰·데스크톱·클라우드 세션
-전부에서 REA 툴이 보입니다. 자세한 절차와 **보안 주의**는 [remote/README.ko.md](remote/README.ko.md).
+<details>
+<summary><b>원격 어플라이언스 (어디서든, PC 꺼져도)</b></summary>
 
----
+```bash
+cd remote && export REA_PATH_SECRET=$(openssl rand -hex 24)
+docker compose up --build       # REA + Ghidra + jadx + radare2/binwalk/tshark/apktool + Cloudflare 터널
+```
+claude.ai → Settings → Connectors → *Add custom connector*에 `https://<터널>/<REA_PATH_SECRET>/mcp`를
+넣으세요. [remote/README.ko.md](remote/README.ko.md)의 **보안 주의**를 꼭 읽어 주세요.
+</details>
 
-## 설정 파일 `~/.rea-plugin.json`
+## ✨ 기능
 
-모든 키는 선택이고 빈 값은 무시됩니다. 우선순위: 실제 REA 환경변수 → `REA_PLUGIN_*` 환경변수
-→ 이 파일 → 엔진 디렉터리 자동 탐색(`~/.rea-engines`).
+| | |
+|---|---|
+| 🌍 **어디서든 실행** | 범용 런처 하나(`scripts/launch-rea.cjs`)가 Claude Code, Claude Desktop, claude.ai 클라우드 세션, Docker를 모두 담당합니다. |
+| ⚙️ **엔진 자동 설치** | Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1, apt 도구 묶음이 Linux에서 백그라운드로 알아서 설치됩니다. 엔진별 선택 가능. |
+| 🧭 **가이드 워크플로** | `/rea:analyze`가 대상 유형(네이티브 바이너리·APK·Electron/JS·펌웨어·웹 번들)별 플레이북을 골라 조사하며 증거를 모읍니다. |
+| 📄 **공유용 리포트** | `/rea:report`가 REA evidence를 독립 실행 HTML(라이트/다크) 또는 Markdown 리포트로 만듭니다 — 디컴파일 코드, 개요, provider, confidence, limitations. 의존성 0. |
+| 🎛️ **사용자 설정** | `~/.rea-plugin.json`: 엔진 경로, 설치할 엔진, 리포트 형식/경로, WSL 모드, REA 버전, env 통과. 빈 값은 무시. |
+| 🧪 **테스트** | `scripts/selftest.sh` + GitHub Actions: 매니페스트 구조, 셸/노드 문법, 리포트 픽스처, 그리고 서버를 실제로 띄워 207툴을 확인하는 라이브 MCP 스모크. |
+| 🪟 **Windows 고려** | PE 대상은 네이티브 Windows로, 전체 Linux 도구는 `use_wsl`로. `userConfig`에 의존하지 않아 Claude Desktop이 서버를 직접 띄울 수 있습니다. |
 
-```json
+## 🔍 동작 원리
+
+```mermaid
+flowchart LR
+  subgraph Claude["Claude 세션 (Code · Desktop · claude.ai 클라우드 · 폰)"]
+    A[Claude] -->|MCP stdio| L[scripts/launch-rea.cjs]
+  end
+  L -->|env › 설정 파일 › 자동 탐색| C[(~/.rea-plugin.json<br/>~/.rea-engines)]
+  L -->|npx rea-agents@6.7.0 mcp| R[REA 서버<br/>207 툴]
+  L -. 클라우드 & 엔진 없음 .-> I[install-engines.sh<br/>백그라운드]
+  I --> C
+  R --> G[Ghidra 12.1.4]
+  R --> J[jadx-headless-mcp]
+  R --> T[radare2 · binwalk · tshark · apktool · gdb]
+  A -->|/rea:analyze| E[(rea-evidence/*.json)]
+  E -->|/rea:report → make-report.mjs| P[HTML / Markdown 리포트]
+```
+
+- **런처가 왜 필요한가.** 호스트가 빈 설정값을 `""`로 넘기면 REA가 "절대경로가 아님"으로 거부하고, 클라우드에서는 서버를 즉시 띄운 뒤 엔진을 받아야 하며, Windows는 WSL 분기가 필요합니다.
+- **지연 설치가 되는 이유.** REA는 Ghidra 프로바이더를 서버 시작이 아니라 `open_binary` 시점에 해석합니다(테스트로 확인). 설치가 끝나면 대상을 다시 열면 됩니다.
+- **`.mcp.json`과 `plugin.json`이 둘 다 있는 이유.** 클라우드/로컬 세션은 프로젝트 `.mcp.json`을, 플러그인 설치는 `plugin.json`을 읽습니다. 같은 `rea` 서버이고 플러그인 설치 시엔 후자가 이깁니다.
+- `rea mcp --http`는 REA `main`에는 있지만 npm 6.7.0에는 없어, 원격 어플라이언스는 당분간 `supergateway`로 stdio → Streamable HTTP를 브리지합니다.
+
+## 🧰 커맨드 & 스킬
+
+| 커맨드 | 하는 일 |
+|---|---|
+| `/rea:analyze <경로> [목표]` | 가이드 조사: 대상 유형 판별 → 맞는 플레이북 실행 → 모든 결과를 `./rea-evidence/*.json`에 저장 |
+| `/rea:report [디렉터리] [--format html\|md\|both]` | 저장된 evidence로 공유용 리포트 생성(설정의 `report.*` 반영) |
+| `/rea:doctor` | MCP 서버 상태, 엔진별 가용 여부, 빠진 엔진의 정확한 해결법 |
+| `/rea:capabilities` | 이 호스트에서 *지금* 가능한 REA 기능을 대상 유형별로 정리 |
+| `/rea:install-engines` | Linux 엔진 설치기(멱등, 선택형) |
+
+| 스킬 | 용도 |
+|---|---|
+| `reverse-engineer-anything` | REA 공식 207툴 레퍼런스와 복구 가이드(MIT, 동봉) |
+| `rea-workflows` | 유형별 플레이북: 네이티브 ELF/PE/Mach-O, Android APK, Electron/JS, 펌웨어, 웹 |
+| `rea-anywhere` | 환경별 운영 노트: 클라우드 자동 설치, `provider_unavailable`, 파일 위치 |
+
+## 🎛️ 설정
+
+`~/.rea-plugin.json` (또는 `$REA_PLUGIN_CONFIG`). 값별 우선순위: **REA 환경변수 → `REA_PLUGIN_*` 환경변수 → 설정 파일 → `~/.rea-engines` 자동 탐색**.
+
+```jsonc
 {
   "rea_version": "6.7.0",
-  "ghidra_install_dir": "C:\\tools\\ghidra_12.1.4_PUBLIC",
+  "ghidra_install_dir": "C:\\tools\\ghidra_12.1.4_PUBLIC",   // Linux 경로도 가능
   "jadx_mcp_jar": "C:\\tools\\jadx-headless-mcp-0.7.1-all.jar",
-  "kuna_command": "",
-  "ida_mcp_config": "",
-  "engines_dir": "",
-  "auto_engines": false,
-  "engines": ["ghidra", "jadx", "apt"],
-  "use_wsl": false,
-  "wsl_distro": "Ubuntu",
+  "kuna_command": "", "ida_mcp_config": "", "browser_executable": "",
+  "engines_dir": "",                       // 기본 ~/.rea-engines
+  "auto_engines": false,                   // 클라우드 세션은 기본 true
+  "engines": ["ghidra", "jadx", "apt"],    // install-engines가 받을 엔진
+  "use_wsl": false, "wsl_distro": "Ubuntu",
+  "rea_command": "",                       // 전역 설치면 "rea"
   "report": { "format": "html", "dir": "rea-reports" },
   "env": { "REA_GHIDRA_STARTUP_TIMEOUT_MS": "600000" }
 }
 ```
 
-`scripts/rea-config.example.json`을 복사해서 쓰세요. 설정 가능한 키:
+| 키 | 타입 | 기본값 | 비고 |
+|---|---|---|---|
+| `engines` | string[] | `["ghidra","jadx","apt"]` | `apt` = radare2, binwalk, tshark, apktool, binutils, gdb |
+| `auto_engines` | bool | 클라우드 `true`, 그 외 `false` | Ghidra가 없으면 백그라운드 설치(Linux) |
+| `engines_dir` | 경로 | `~/.rea-engines` | 자동 탐색 루트 |
+| `report.format` / `report.dir` | `html`·`md`·`both` / 경로 | `html` / `rea-reports` | `/rea:report` 기본값 |
+| `use_wsl` / `wsl_distro` | bool / string | `false` / `Ubuntu` | Windows 전용; 엔진 경로는 Linux 경로 |
+| `rea_version` | string | `6.7.0` | 고정 npm 버전 |
+| `env` | object | — | REA에 그대로 넘길 추가 변수(타임아웃, 스키마 프로필 등) |
 
-- `engines` — 설치기가 받을 엔진: `ghidra`, `jadx`, `apt`(apt 묶음: radare2·binwalk·tshark·apktool·binutils·gdb) 중 선택. 기본값은 셋 다.
-- `auto_engines` — 엔진이 없을 때 백그라운드 설치. 클라우드 세션(`CLAUDE_CODE_REMOTE`) 기본 켜짐, 그 외 기본 꺼짐.
-- `report.format`(`html`|`md`|`both`)·`report.dir` — `/rea:report` 기본값.
-- 그 외 엔진 경로, `use_wsl`/`wsl_distro`, `rea_version`, `env` 통과.
+환경변수 대응: `REA_PLUGIN_CONFIG`, `REA_PLUGIN_ENGINES_DIR`, `REA_PLUGIN_ENGINES`,
+`REA_PLUGIN_AUTO_ENGINES=1`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`, 그리고 REA 기본 변수
+(`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `REA_KUNA_COMMAND`, `REA_IDA_MCP_CONFIG`).
 
-## 커맨드와 스킬
+## 📊 검증 수치
 
-- **`/rea:analyze <경로> [목표]`** — 가이드 조사. 대상 유형(네이티브 바이너리·APK·Electron/JS·펌웨어·웹 번들)에 맞는 플레이북을 골라 REA 툴을 돌리고, 각 결과를 `./rea-evidence/`에 evidence JSON으로 저장.
-- **`/rea:report [디렉터리]`** — 저장된 evidence를 공유용 **HTML/Markdown 리포트**로 변환(`scripts/make-report.mjs`): 대상별 카드, 디컴파일 코드 블록, 개요 표, provider·confidence·limitations, 라이트/다크, 의존성 없음.
-- **`/rea:doctor`**, **`/rea:capabilities`**, **`/rea:install-engines`** — 준비 상태, 현재 사용 가능 기능, Linux 엔진 설치기.
-- 스킬: `reverse-engineer-anything`(REA 공식 207툴 레퍼런스, MIT), `rea-workflows`(유형별 플레이북), `rea-anywhere`(환경별 운영 노트).
+Anthropic 클라우드 컨테이너(Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21)에서 측정:
 
-## 구성 요소
+| 단계 | 결과 |
+|---|---|
+| 빈 디렉터리에서 `install-engines.sh` | **1분 46초** (Ghidra 570 MB 다운로드 + SHA-256 + 압축 해제, jadx, apt 도구) |
+| `rea doctor` | ghidra 12.1.4 `available=true`, jadx `available=true` |
+| 작은 ELF Ghidra 디컴파일 | 호출당 ≈ 20초 |
+| 런처 기동 → `tools/list` | 207 툴, 1초 미만 |
+| 새 Claude Code 세션에서 전체 체인 | `.mcp.json` 자동 로드 → 훅이 엔진 설치 → `procedure_pseudo_code`가 Ghidra 출력 반환 |
+
+## 📁 저장소 구조
 
 ```
-.claude-plugin/plugin.json      플러그인 매니페스트 (MCP 서버 → scripts/launch-rea.cjs)
-.claude-plugin/marketplace.json 저장소 자체가 마켓플레이스
-.mcp.json                       클라우드/로컬 세션용 프로젝트 MCP 정의 (승인 없이 자동 로드)
-.claude/settings.json           클라우드 세션 SessionStart 훅: 엔진 백그라운드 설치
-scripts/launch-rea.cjs          범용 런처 (설정 파일·자동 탐색·클라우드 자동 설치·WSL)
-scripts/install-engines.sh      Linux 엔진 설치기 (선택형: Ghidra 12.1.4 SHA-256 검증, jadx, apt 도구)
-scripts/make-report.mjs         REA evidence → HTML/Markdown 리포트 (의존성 없음)
-scripts/selftest.sh             오프라인 점검 + 런처 MCP 스모크; CI와 로컬에서 실행
-skills/reverse-engineer-anything REA 공식 조사 스킬 (207 툴, MIT)
-skills/rea-workflows            대상 유형별 조사 플레이북
-skills/rea-anywhere             환경별 운영 노트 (provider_unavailable 대처 등)
-commands/analyze, report, doctor, capabilities, install-engines
-tests/fixtures                  selftest가 쓰는 소형 REA evidence 샘플
-.github/workflows/ci.yml        매 푸시마다 selftest + best-effort plugin validate 실행
-remote/                         Docker 어플라이언스 + Cloudflare 터널
+.claude-plugin/        plugin.json · marketplace.json (저장소가 마켓플레이스를 겸함)
+.mcp.json              클라우드/로컬 세션용 프로젝트 MCP 서버 (승인 없이 로드)
+.claude/settings.json  SessionStart 훅: 클라우드 세션에서 엔진 백그라운드 설치
+scripts/
+  launch-rea.cjs       범용 런처
+  install-engines.sh   Linux 설치기 (Ghidra, jadx, apt) — 멱등, 선택형
+  make-report.mjs      REA evidence → HTML/Markdown 리포트
+  selftest.sh          오프라인 점검 + 라이브 MCP 스모크 (CI가 사용)
+  rea-config.example.json
+skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
+commands/              analyze · report · doctor · capabilities · install-engines
+tests/fixtures/        소형 REA evidence 샘플
+remote/                Dockerfile · docker-compose.yml (Cloudflare 터널) · README
+.github/workflows/     ci.yml
 ```
 
-## 개발
+## ❓ FAQ
 
-`bash scripts/selftest.sh` 로 전체 오프라인 점검(JSON/매니페스트 구조, 셸·노드 문법, 픽스처
-리포트 생성)과 서버를 실제로 띄워 툴 제공을 확인하는 런처 MCP 스모크까지 돌립니다. CI도 매
-푸시마다 같은 걸 실행합니다. `REA_SELFTEST_SKIP_MCP=1`로 네트워크 의존 스모크를 건너뛸 수 있어요.
+**폰의 claude.ai에서도 되나요?** 네, 두 가지 방식으로요. 이 저장소를 붙인 클라우드 세션은 Anthropic 컨테이너에서 REA를 돌리므로 PC가 필요 없습니다. 또는 PC에 연결된 세션이 데스크톱 앱의 로컬 REA 툴을 중계합니다.
 
-## 동작 원리와 설계 근거
+**Ghidra를 직접 설치해야 하나요?** Linux/클라우드에서는 아니요 — `install-engines.sh`가 SHA-256 검증까지 해서 설치합니다. Windows/macOS에서는 Ghidra 12.1.4를 설치하고 `GHIDRA_INSTALL_DIR`을 지정하세요.
 
-- **런처가 중간에 있는 이유** ① 호스트가 빈 설정값을 `""`로 넘기면 REA가 "절대경로가 아님"으로
-  거부하므로 빈 값을 걸러야 함 ② 클라우드에서는 서버를 즉시 띄우고 엔진을 뒤에서 받아야 MCP
-  시작 타임아웃에 안 걸림 ③ Windows에서 WSL로 넘기는 분기.
-- **지연 설치가 가능한 이유** REA는 Ghidra 프로바이더를 서버 시작 시가 아니라 `open_binary`
-  시점에 해석합니다(테스트로 확인). 설치 완료 후 대상을 다시 열면 됩니다.
-- **`.mcp.json`과 `plugin.json` 둘 다 있는 이유** 클라우드/로컬 세션은 프로젝트 `.mcp.json`을,
-  플러그인 설치는 `plugin.json`을 읽습니다. 같은 이름 `rea`라 플러그인 설치 시엔 후자가 이깁니다.
-- `rea mcp --http`(네이티브 Streamable HTTP)는 REA 소스 main에는 있지만 npm 6.7.0에는 아직
-  없어, 원격 어플라이언스는 `supergateway`로 브리지합니다. 다음 릴리스에서 교체 가능.
+**자동 설치되지 않는 엔진은?** IDA, Kuna, Hopper(상용 또는 수동 설치). 설정에 본인 설치 경로를 적어 주세요.
 
-## 한계
+**큰 바이너리가 느리거나 타임아웃이 나요.** 클라우드 컨테이너가 작습니다. `env`의 `REA_GHIDRA_STARTUP_TIMEOUT_MS`를 늘리고, 개요는 한 번만 뽑은 뒤 `procedure_pseudo_code`로 함수 단위 호출을 쓰세요.
 
-- 클라우드 컨테이너는 보통 2 vCPU/8 GB라 큰 바이너리는 느립니다. `REA_GHIDRA_STARTUP_TIMEOUT_MS`를
-  늘리고, 전체 분석은 한 번만 하고 함수 단위 호출을 쓰세요.
-- IDA·Kuna·Hopper는 상용/수동 설치 엔진이라 클라우드 자동 설치 대상이 아닙니다.
-- macOS 전용 프로바이더(asset catalog 등)는 macOS에서만 동작합니다.
-- 이미 `npx rea-agents setup`으로 같은 클라이언트에 등록해 뒀다면 둘 중 하나만 남기세요.
+**이미 `npx rea-agents setup`을 돌렸는데요.** 클라이언트당 등록은 하나만 남기세요. 아니면 `rea` 서버가 둘 뜹니다.
 
-## 라이선스
+**리포트 내용은 믿어도 되나요?** 아니요. 심볼 이름, 경로, 디컴파일 코드는 분석 대상에서 나온 것이고 리포트 상단에도 그렇게 적혀 있습니다. 명령이 아니라 데이터로 다루세요.
 
-플러그인 래퍼: MIT. `skills/reverse-engineer-anything/`는 [morluto/rea](https://github.com/morluto/rea)의
-MIT 스킬을 그대로 가져온 것입니다(`LICENSE.rea`). REA 본체는 포함되지 않고 실행 시 npm에서 받습니다.
-Ghidra는 Apache-2.0, jadx-headless-mcp는 해당 저장소의 라이선스를 따릅니다.
+## 🗺️ 로드맵
+
+- [ ] npm에 네이티브 `rea mcp --http`가 올라오면 원격 어플라이언스를 그것으로 전환
+- [ ] Claude Desktop 원클릭 설치용 `.mcpb` 데스크톱 확장 빌드 스크립트
+- [ ] 원격 어플라이언스용 OAuth 게이트웨이 레시피
+- [ ] 리포트 diff: 두 evidence 세트 비교(같은 앱의 두 빌드)
+- [ ] 플레이북 추가(Go/Rust 바이너리, Flutter, WASM)
+
+## 🤝 기여하기
+
+```bash
+git clone https://github.com/NoLucas/REA-for-Claude && cd REA-for-Claude
+bash scripts/selftest.sh            # 오프라인 점검 + 라이브 MCP 스모크 (REA_SELFTEST_SKIP_MCP=1로 건너뛰기)
+claude plugin validate --strict .claude-plugin/plugin.json
+```
+
+PR 환영합니다 — 플레이북, 엔진 레시피, 리포트 렌더러, Windows/macOS 테스트. selftest는 녹색으로
+유지하고, 최상위 `bin/`은 추가하지 마세요(claude.ai가 그런 플러그인을 거부합니다).
+
+## 📜 라이선스 & 크레딧
+
+플러그인 래퍼: [MIT](LICENSE). `skills/reverse-engineer-anything/`는 [morluto/rea](https://github.com/morluto/rea)에서
+가져온 것(MIT, `LICENSE.rea` 참고). REA 본체는 포함되지 않고 실행 시 npm에서 받습니다. Ghidra는 Apache-2.0(NSA),
+jadx-headless-mcp는 해당 저장소의 라이선스를 따릅니다. REA·Ghidra·jadx 프로젝트와 공식 관계는 없습니다.
