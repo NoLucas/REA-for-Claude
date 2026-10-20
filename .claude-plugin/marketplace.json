@@ -1,0 +1,19 @@
+{
+  "name": "rea-for-claude",
+  "owner": {
+    "name": "NoLucas",
+    "url": "https://github.com/NoLucas"
+  },
+  "metadata": {
+    "description": "Marketplace for the REA (Reverse Engineer Anything) plugin: REA MCP server + skills, runnable in Claude Code, Claude Desktop and claude.ai cloud sessions."
+  },
+  "plugins": [
+    {
+      "name": "rea",
+      "source": "./",
+      "description": "REA MCP server + reverse-engineering skills. Engines (Ghidra 12.1.4, jadx) auto-install in cloud sessions; Windows can run REA inside WSL.",
+      "category": "security",
+      "tags": ["reverse-engineering", "security", "mcp", "ghidra", "android"]
+    }
+  ]
+}

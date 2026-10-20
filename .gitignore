@@ -1,0 +1,5 @@
+node_modules/
+.mcpb-cache/
+remote/targets/
+*.log
+.DS_Store

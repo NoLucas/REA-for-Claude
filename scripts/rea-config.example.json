@@ -1,0 +1,23 @@
+{
+  "_comment": "Copy to ~/.rea-plugin.json (or point REA_PLUGIN_CONFIG at it). Every key is optional; blank values are ignored.",
+
+  "rea_version": "6.7.0",
+
+  "ghidra_install_dir": "C:\\tools\\ghidra_12.1.4_PUBLIC",
+  "jadx_mcp_jar": "C:\\tools\\jadx-headless-mcp-0.7.1-all.jar",
+  "kuna_command": "",
+  "ida_mcp_config": "",
+  "browser_executable": "",
+
+  "engines_dir": "",
+  "auto_engines": false,
+
+  "use_wsl": false,
+  "wsl_distro": "Ubuntu",
+
+  "rea_command": "",
+
+  "env": {
+    "REA_GHIDRA_STARTUP_TIMEOUT_MS": "600000"
+  }
+}

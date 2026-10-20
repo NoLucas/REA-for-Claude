@@ -1,0 +1,38 @@
+# REA appliance + Cloudflare quick tunnel.
+#
+#   cd remote
+#   export REA_PATH_SECRET=$(openssl rand -hex 24)      # PowerShell: $env:REA_PATH_SECRET = -join ((1..48) | % { '{0:x}' -f (Get-Random -Max 16) })
+#   docker compose up --build
+#
+# Watch the cloudflared log for a line like
+#   https://<random-words>.trycloudflare.com
+# Your MCP URL for claude.ai (Settings → Connectors → Add custom connector) is then
+#   https://<random-words>.trycloudflare.com/<REA_PATH_SECRET>/mcp
+#
+# A quick tunnel changes its hostname every restart. For a stable hostname create a
+# named tunnel (cloudflared tunnel create / Zero Trust dashboard) and replace the command.
+
+services:
+  rea:
+    build:
+      context: ..
+      dockerfile: remote/Dockerfile
+    image: rea-appliance
+    environment:
+      REA_PATH_SECRET: ${REA_PATH_SECRET:?set REA_PATH_SECRET to a long random string}
+      PORT: "8765"
+    volumes:
+      - ./targets:/targets
+    # Ghidra on big binaries is memory-hungry; raise if analyses die
+    deploy:
+      resources:
+        limits:
+          memory: 6g
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://rea:8765
+    depends_on:
+      - rea
+    restart: unless-stopped

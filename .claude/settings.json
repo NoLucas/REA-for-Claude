@@ -1,0 +1,16 @@
+{
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -n \"$CLAUDE_CODE_REMOTE\" ] && [ \"$(uname -s)\" = \"Linux\" ]; then mkdir -p \"$HOME/.rea-engines\"; (setsid nohup bash \"$CLAUDE_PROJECT_DIR/scripts/install-engines.sh\" --background >> \"$HOME/.rea-engines/install.log\" 2>&1 &); echo 'REA: engine install started in background (log: ~/.rea-engines/install.log)'; fi",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
