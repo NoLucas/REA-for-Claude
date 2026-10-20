@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Offline checks: JSON/manifest shape, shell + node syntax, report generation
+      # from fixtures. The launcher MCP smoke needs rea-agents from npm, so it is a
+      # separate best-effort step below.
+      - name: Self-test (offline)
+        run: REA_SELFTEST_SKIP_MCP=1 bash scripts/selftest.sh
+
+      # Best-effort: fetch rea-agents and confirm the launcher serves MCP tools.
+      # Does not fail the build if npm/network is unavailable in the runner.
+      - name: Launcher MCP smoke (best-effort)
+        continue-on-error: true
+        run: bash scripts/selftest.sh
+
+  plugin-validate:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # claude CLI availability can change; keep CI green on offline checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate plugin & marketplace manifests
+        run: |
+          claude plugin validate --strict .claude-plugin/plugin.json
+          claude plugin validate --strict .claude-plugin/marketplace.json
+          claude plugin validate skills
+          claude plugin validate commands

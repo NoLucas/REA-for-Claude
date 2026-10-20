@@ -1,0 +1,25 @@
+{
+  "evidence_id": "ev_836135c614ff3296927f1...",
+  "subject": {
+    "name": "sample-true",
+    "digest": {
+      "sha256": "8a63c98320173f79e263115e10cefc170155e47d1fd4b5a70e4429d2699cae28"
+    },
+    "local_path": "/home/claude/sample-true",
+    "format": "elf",
+    "architecture": "x86_64"
+  },
+  "provider": {
+    "id": "ghidra",
+    "name": "Ghidra",
+    "version": "12.1.4"
+  },
+  "predicate_type": "rea.analysis",
+  "operation": "procedure_pseudo_code",
+  "confidence": "observed",
+  "normalized_result": "\nvoid processEntry entry(undefined8 param_1,undefined8 param_2)\n\n{\n  undefined1 auStack_8 [8];\n  \n  __libc_start_main(FUN_00101490,param_2,&stack0x00000008,0,0,param_1,auStack_8);\n  do {\n                    /* WARNING: Do nothing block with infinite loop */\n  } while( true );\n}\n\n",
+  "limitations": [
+    "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+    "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written."
+  ]
+}

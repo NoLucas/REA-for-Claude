@@ -9,11 +9,15 @@
 #
 # Environment:
 #   REA_PLUGIN_ENGINES_DIR   target directory (default ~/.rea-engines)
-#   REA_PLUGIN_SKIP_APT=1    do not touch apt
-#   REA_PLUGIN_SKIP_JADX=1   skip jadx
+#   REA_PLUGIN_ENGINES       comma list to install: ghidra,jadx,apt (default: all).
+#                            "all"/empty = everything. The config file's "engines"
+#                            array is passed here by launch-rea.cjs.
+#   REA_PLUGIN_SKIP_APT=1    do not touch apt (same as dropping "apt" from the list)
+#   REA_PLUGIN_SKIP_JADX=1   skip jadx   (same as dropping "jadx" from the list)
 # Flags:
 #   --background   log-friendly mode used by launch-rea.cjs (writes install.lock / install.done)
 #   --no-apt       same as REA_PLUGIN_SKIP_APT=1
+#   --only <list>  same as REA_PLUGIN_ENGINES=<list>
 set -euo pipefail
 
 ENGINES="${REA_PLUGIN_ENGINES_DIR:-$HOME/.rea-engines}"
@@ -30,9 +34,25 @@ for arg in "$@"; do
   case "$arg" in
     --background) BACKGROUND=1 ;;
     --no-apt) export REA_PLUGIN_SKIP_APT=1 ;;
-    -h|--help) sed -n 2,20p "$0"; exit 0 ;;
+    --only) shift_only=1 ;;
+    -h|--help) sed -n 2,24p "$0"; exit 0 ;;
+    *) if [ "${shift_only:-0}" = "1" ]; then export REA_PLUGIN_ENGINES="$arg"; shift_only=0; fi ;;
   esac
 done
+
+# Engine selection: "all"/empty = everything. SKIP_* flags still subtract.
+SELECT="${REA_PLUGIN_ENGINES:-all}"
+want() {
+  case ",${SELECT}," in
+    *,all,*|,,) return 0 ;;
+    *",$1,"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+[ "${REA_PLUGIN_SKIP_JADX:-0}" = "1" ] && SKIP_JADX=1 || SKIP_JADX=0
+[ "${REA_PLUGIN_SKIP_APT:-0}" = "1" ] && SKIP_APT=1 || SKIP_APT=0
+want jadx || SKIP_JADX=1
+want apt  || SKIP_APT=1
 
 mkdir -p "$ENGINES"
 LOCK="${ENGINES}/install.lock"
@@ -50,7 +70,7 @@ if need_cmd java && java -version 2>&1 | grep -qE 'version "(2[1-9]|[3-9][0-9])'
   log "java: $(java -version 2>&1 | head -1)"
 else
   log "JDK 21+ not found."
-  if [ "${REA_PLUGIN_SKIP_APT:-0}" != "1" ] && need_cmd apt-get; then
+  if [ "$SKIP_APT" != "1" ] && need_cmd apt-get; then
     log "installing openjdk-21-jdk-headless via apt"
     (sudo -n true 2>/dev/null && SUDO=sudo || SUDO="") ; ${SUDO:-} apt-get install -y -qq openjdk-21-jdk-headless >/dev/null 2>&1 || log "apt install of JDK failed; install JDK 21+ manually"
   else
@@ -59,7 +79,9 @@ else
 fi
 
 # ---- Ghidra -----------------------------------------------------------------
-if [ -x "${GHIDRA_DIR}/support/analyzeHeadless" ]; then
+if ! want ghidra; then
+  log "ghidra not selected; skipping"
+elif [ -x "${GHIDRA_DIR}/support/analyzeHeadless" ]; then
   log "ghidra ${GHIDRA_VERSION} already installed at ${GHIDRA_DIR}"
 else
   log "downloading Ghidra ${GHIDRA_VERSION} (~570 MB) ..."
@@ -76,7 +98,7 @@ else
 fi
 
 # ---- jadx-headless-mcp --------------------------------------------------------
-if [ "${REA_PLUGIN_SKIP_JADX:-0}" = "1" ]; then
+if [ "$SKIP_JADX" = "1" ]; then
   log "skipping jadx"
 elif [ -s "${ENGINES}/${JADX_JAR}" ]; then
   log "jadx-headless-mcp already present"
@@ -88,7 +110,7 @@ else
 fi
 
 # ---- apt tools -------------------------------------------------------------------
-if [ "${REA_PLUGIN_SKIP_APT:-0}" != "1" ] && need_cmd apt-get; then
+if [ "$SKIP_APT" != "1" ] && need_cmd apt-get; then
   missing=()
   for pkg in binutils gdb radare2 binwalk tshark apktool unzip procps; do
     dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")

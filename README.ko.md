@@ -104,14 +104,27 @@ Linux 컨테이너에 굽고 Streamable HTTP로 노출합니다. Cloudflare 터�
   "ida_mcp_config": "",
   "engines_dir": "",
   "auto_engines": false,
+  "engines": ["ghidra", "jadx", "apt"],
   "use_wsl": false,
   "wsl_distro": "Ubuntu",
+  "report": { "format": "html", "dir": "rea-reports" },
   "env": { "REA_GHIDRA_STARTUP_TIMEOUT_MS": "600000" }
 }
 ```
 
-`scripts/rea-config.example.json`을 복사해서 쓰세요. `auto_engines`는 클라우드 세션
-(`CLAUDE_CODE_REMOTE`)에서는 기본 켜짐, 그 외에는 기본 꺼짐입니다.
+`scripts/rea-config.example.json`을 복사해서 쓰세요. 설정 가능한 키:
+
+- `engines` — 설치기가 받을 엔진: `ghidra`, `jadx`, `apt`(apt 묶음: radare2·binwalk·tshark·apktool·binutils·gdb) 중 선택. 기본값은 셋 다.
+- `auto_engines` — 엔진이 없을 때 백그라운드 설치. 클라우드 세션(`CLAUDE_CODE_REMOTE`) 기본 켜짐, 그 외 기본 꺼짐.
+- `report.format`(`html`|`md`|`both`)·`report.dir` — `/rea:report` 기본값.
+- 그 외 엔진 경로, `use_wsl`/`wsl_distro`, `rea_version`, `env` 통과.
+
+## 커맨드와 스킬
+
+- **`/rea:analyze <경로> [목표]`** — 가이드 조사. 대상 유형(네이티브 바이너리·APK·Electron/JS·펌웨어·웹 번들)에 맞는 플레이북을 골라 REA 툴을 돌리고, 각 결과를 `./rea-evidence/`에 evidence JSON으로 저장.
+- **`/rea:report [디렉터리]`** — 저장된 evidence를 공유용 **HTML/Markdown 리포트**로 변환(`scripts/make-report.mjs`): 대상별 카드, 디컴파일 코드 블록, 개요 표, provider·confidence·limitations, 라이트/다크, 의존성 없음.
+- **`/rea:doctor`**, **`/rea:capabilities`**, **`/rea:install-engines`** — 준비 상태, 현재 사용 가능 기능, Linux 엔진 설치기.
+- 스킬: `reverse-engineer-anything`(REA 공식 207툴 레퍼런스, MIT), `rea-workflows`(유형별 플레이북), `rea-anywhere`(환경별 운영 노트).
 
 ## 구성 요소
 
@@ -121,12 +134,23 @@ Linux 컨테이너에 굽고 Streamable HTTP로 노출합니다. Cloudflare 터�
 .mcp.json                       클라우드/로컬 세션용 프로젝트 MCP 정의 (승인 없이 자동 로드)
 .claude/settings.json           클라우드 세션 SessionStart 훅: 엔진 백그라운드 설치
 scripts/launch-rea.cjs          범용 런처 (설정 파일·자동 탐색·클라우드 자동 설치·WSL)
-scripts/install-engines.sh      Linux 엔진 설치기 (Ghidra 12.1.4 SHA-256 검증, jadx, apt 도구)
+scripts/install-engines.sh      Linux 엔진 설치기 (선택형: Ghidra 12.1.4 SHA-256 검증, jadx, apt 도구)
+scripts/make-report.mjs         REA evidence → HTML/Markdown 리포트 (의존성 없음)
+scripts/selftest.sh             오프라인 점검 + 런처 MCP 스모크; CI와 로컬에서 실행
 skills/reverse-engineer-anything REA 공식 조사 스킬 (207 툴, MIT)
+skills/rea-workflows            대상 유형별 조사 플레이북
 skills/rea-anywhere             환경별 운영 노트 (provider_unavailable 대처 등)
-commands/doctor, capabilities, install-engines
+commands/analyze, report, doctor, capabilities, install-engines
+tests/fixtures                  selftest가 쓰는 소형 REA evidence 샘플
+.github/workflows/ci.yml        매 푸시마다 selftest + best-effort plugin validate 실행
 remote/                         Docker 어플라이언스 + Cloudflare 터널
 ```
+
+## 개발
+
+`bash scripts/selftest.sh` 로 전체 오프라인 점검(JSON/매니페스트 구조, 셸·노드 문법, 픽스처
+리포트 생성)과 서버를 실제로 띄워 툴 제공을 확인하는 런처 MCP 스모크까지 돌립니다. CI도 매
+푸시마다 같은 걸 실행합니다. `REA_SELFTEST_SKIP_MCP=1`로 네트워크 의존 스모크를 건너뛸 수 있어요.
 
 ## 동작 원리와 설계 근거
 

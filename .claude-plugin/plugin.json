@@ -1,8 +1,8 @@
 {
   "name": "rea",
   "displayName": "REA — Reverse Engineer Anything",
-  "version": "0.2.0",
-  "description": "Runs the REA (Reverse Engineer Anything) MCP server wherever your Claude session runs: Claude Code, Claude Desktop (and claude.ai sessions linked to it), and claude.ai cloud sessions where Ghidra and jadx are installed automatically. Ships REA's investigation skill and /rea:doctor, /rea:capabilities, /rea:install-engines.",
+  "version": "0.3.0",
+  "description": "Runs the REA (Reverse Engineer Anything) MCP server wherever your Claude session runs: Claude Code, Claude Desktop (and claude.ai sessions linked to it), and claude.ai cloud sessions where Ghidra and jadx are installed automatically. Ships REA's investigation skill, guided per-target workflows, a shareable HTML/Markdown report generator, and /rea:analyze, /rea:report, /rea:doctor, /rea:capabilities, /rea:install-engines.",
   "author": {
     "name": "NoLucas",
     "url": "https://github.com/NoLucas"

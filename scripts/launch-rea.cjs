@@ -123,12 +123,13 @@ function main() {
     clean(env.REA_PLUGIN_AUTO_ENGINES) === '1' || config.auto_engines === true || (isCloud && config.auto_engines !== false);
   delete env.REA_PLUGIN_AUTO_ENGINES;
 
+  const selection = Array.isArray(config.engines) && config.engines.length ? config.engines.join(',') : clean(env.REA_PLUGIN_ENGINES) || 'all';
+  const wants = (name) => /(^|,)(all)(,|$)/.test(selection) || selection.split(',').map((s) => s.trim()).includes(name);
+
   if (autoEngines && process.platform === 'linux' && !env.GHIDRA_INSTALL_DIR) {
     const installer = path.join(PLUGIN_ROOT, 'scripts', 'install-engines.sh');
-    const expectedGhidra = path.join(dir, GHIDRA_DIR_NAME);
-    const expectedJadx = path.join(dir, JADX_JAR_NAME);
-    env.GHIDRA_INSTALL_DIR = expectedGhidra;
-    if (!env.REA_JADX_MCP_JAR) env.REA_JADX_MCP_JAR = expectedJadx;
+    if (wants('ghidra')) env.GHIDRA_INSTALL_DIR = path.join(dir, GHIDRA_DIR_NAME);
+    if (wants('jadx') && !env.REA_JADX_MCP_JAR) env.REA_JADX_MCP_JAR = path.join(dir, JADX_JAR_NAME);
     try {
       fs.mkdirSync(dir, { recursive: true });
       const lock = path.join(dir, 'install.lock');
@@ -139,10 +140,10 @@ function main() {
         const child = spawn('bash', [installer, '--background'], {
           detached: true,
           stdio: ['ignore', out, out],
-          env: { ...process.env, REA_PLUGIN_ENGINES_DIR: dir },
+          env: { ...process.env, REA_PLUGIN_ENGINES_DIR: dir, REA_PLUGIN_ENGINES: selection },
         });
         child.unref();
-        log(`Ghidra not found; installing engines in the background into ${dir} (log: ${dir}/install.log)`);
+        log(`Ghidra not found; installing engines (${selection}) in the background into ${dir} (log: ${dir}/install.log)`);
       }
     } catch (err) {
       log(`could not start engine installer: ${err.message}`);

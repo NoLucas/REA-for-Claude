@@ -117,8 +117,27 @@ Every key is optional and blank values are ignored. Precedence: real REA environ
 }
 ```
 
-Copy `scripts/rea-config.example.json` to start from. `auto_engines` defaults to on in cloud
-sessions (`CLAUDE_CODE_REMOTE`) and off everywhere else.
+Copy `scripts/rea-config.example.json` to start from. Configurable keys:
+
+- `engines` — which engines the installer fetches: any of `ghidra`, `jadx`, `apt` (the apt
+  toolset: radare2, binwalk, tshark, apktool, binutils, gdb). Default: all three.
+- `auto_engines` — install engines in the background when missing. Defaults to on in cloud
+  sessions (`CLAUDE_CODE_REMOTE`) and off everywhere else.
+- `report.format` (`html` | `md` | `both`) and `report.dir` — defaults for `/rea:report`.
+- plus the engine paths, `use_wsl`/`wsl_distro`, `rea_version`, and an `env` passthrough.
+
+## Commands and skills
+
+- **`/rea:analyze <path> [goal]`** — guided investigation. Picks the right playbook for the
+  target type (native binary, APK, Electron/JS app, firmware, web bundle), runs REA's tools,
+  and saves each result as evidence JSON under `./rea-evidence/`.
+- **`/rea:report [dir]`** — turns saved evidence into a shareable **HTML/Markdown report**
+  (`scripts/make-report.mjs`): one card per target, decompiled code as code blocks, overviews
+  as tables, provider + confidence + limitations, light/dark, no dependencies.
+- **`/rea:doctor`**, **`/rea:capabilities`**, **`/rea:install-engines`** — readiness, what's
+  usable now, and the Linux engine installer.
+- Skills: `reverse-engineer-anything` (REA's official 207-tool reference, MIT),
+  `rea-workflows` (per-target playbooks), `rea-anywhere` (per-environment operating notes).
 
 ## What's inside
 
@@ -128,12 +147,24 @@ sessions (`CLAUDE_CODE_REMOTE`) and off everywhere else.
 .mcp.json                       project MCP definition for cloud/local sessions (loads without a prompt)
 .claude/settings.json           cloud-session SessionStart hook: background engine install
 scripts/launch-rea.cjs          universal launcher (config file, auto-discovery, cloud auto-install, WSL)
-scripts/install-engines.sh      Linux engine installer (Ghidra 12.1.4 SHA-256 verified, jadx, apt tools)
+scripts/install-engines.sh      Linux engine installer (configurable: Ghidra 12.1.4 SHA-256 verified, jadx, apt tools)
+scripts/make-report.mjs         REA evidence → HTML/Markdown report (no dependencies)
+scripts/selftest.sh             offline checks + launcher MCP smoke; run in CI and locally
 skills/reverse-engineer-anything REA's official investigation skill (207 tools, MIT)
+skills/rea-workflows            per-target-type investigation playbooks
 skills/rea-anywhere             per-environment operating notes (handling provider_unavailable, etc.)
-commands/doctor, capabilities, install-engines
+commands/analyze, report, doctor, capabilities, install-engines
+tests/fixtures                  small REA evidence samples used by selftest
+.github/workflows/ci.yml        runs selftest on every push + best-effort plugin validate
 remote/                         Docker appliance + Cloudflare tunnel
 ```
+
+## Development
+
+`bash scripts/selftest.sh` runs the full offline check (JSON/manifest shape, shell + node
+syntax, report generation from fixtures) plus a live launcher MCP smoke that starts the server
+and asserts it serves tools. CI runs the same on every push. Set `REA_SELFTEST_SKIP_MCP=1` to
+skip the network-dependent smoke.
 
 ## How it works and why
 

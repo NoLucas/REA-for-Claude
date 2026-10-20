@@ -11,11 +11,16 @@
 
   "engines_dir": "",
   "auto_engines": false,
+  "engines": ["ghidra", "jadx", "apt"],
 
   "use_wsl": false,
   "wsl_distro": "Ubuntu",
-
   "rea_command": "",
+
+  "report": {
+    "format": "html",
+    "dir": "rea-reports"
+  },
 
   "env": {
     "REA_GHIDRA_STARTUP_TIMEOUT_MS": "600000"
