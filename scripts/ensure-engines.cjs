@@ -74,7 +74,10 @@ function main() {
 
   // Integrity: a half-extracted Ghidra, a JRE without javac, or a truncated jar looks
   // "present" to the quick check above; validateEngines() finds it and names the exact fix.
-  const broken = lib.validateEngines(config).filter((v) => !v.ok && v.repair && !missing.some((m) => m.toLowerCase().startsWith(v.engine === 'jdk' ? 'jdk' : v.engine)));
+  // When the user manages Java themselves (jdk=false / REA_PLUGIN_SKIP_JDK=1) the JDK row is
+  // informational: the --status table still shows it, but it does not make the verdict "broken".
+  const jdkManaged = config.jdk === false || process.env.REA_PLUGIN_SKIP_JDK === '1';
+  const broken = lib.validateEngines(config).filter((v) => !v.ok && v.repair && !(v.engine === 'jdk' && jdkManaged) && !missing.some((m) => m.toLowerCase().startsWith(v.engine === 'jdk' ? 'jdk' : v.engine)));
   if (missing.length === 0 && broken.length === 0) {
     say(`REA: engines ready on ${plat.label} — ${lib.summarize(found, jdk)}.`);
     return;
