@@ -1,4 +1,4 @@
-<p align="right"><a href="README.md">English</a> | <b>한국어</b></p>
+<p align="right"><a href="README.md">English</a> | <b>한국어</b> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.ja.md">日本語</a></p>
 
 <h1 align="center">REA for Claude</h1>
 
