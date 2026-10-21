@@ -58,6 +58,8 @@ jobs:
           node-version: "22"
       - name: selftest.sh (offline parts)
         run: REA_SELFTEST_SKIP_MCP=1 bash scripts/selftest.sh
+      - name: README diagrams are generated from docs/img/generate.py
+        run: python3 docs/img/generate.py && git diff --exit-code -- docs/img
 
   plugin-validate:
     runs-on: ubuntu-latest
