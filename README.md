@@ -265,6 +265,15 @@ Measured in an Anthropic cloud container (Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21):
 | `ensure-engines.cjs` (SessionStart hook) | **0.2 s** when engines are present or already installing |
 | `install-engines.cjs` resume / offline | a 5 MB partial of apktool resumed and verified in **< 1 s**; a release file in `archives/` is used with no network at all |
 | `rea-router.cjs` (UserPromptSubmit hook) | **~40 ms**, 8/8 routing cases in CI |
+
+Measured on a real **Windows 11 x64** desktop (Node 24.19, home broadband), plugin 1.0.0:
+
+| Step | Result |
+|---|---|
+| `node scripts/selftest.mjs` | all sections pass incl. the live MCP smoke: **207 tools on win32** |
+| `install-engines.cjs --force --only jdk,ghidra,jadx,apktool,radare2` into an empty dir | **26.2 s** for all five downloads (JDK 21 207 MB, Ghidra 570 MB, jadx, apktool, radare2 w64) + SHA-256 + extraction with the built-in `tar.exe` |
+| `launch-rea.cjs doctor` | `ghidra` and `jadx` `available: true`; `ghidra-native_decompiler: win_x86_64/decompile.exe reports pe x86_64, which matches win32/x64`; `ghidra-java: 21.0.12.1; 64-bit; JDK … accepted` |
+| JDK already on the machine (IntelliJ `~/.jdks`) | found by the system-JDK scan and reused — no second JDK download |
 | `rea doctor` | ghidra 12.1.4 `available=true`, jadx `available=true` |
 | Ghidra decompile, small ELF | ≈ 20 s per call |
 | Launcher boot → `tools/list` | 207 tools, < 1 s |

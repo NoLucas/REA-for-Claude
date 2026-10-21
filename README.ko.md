@@ -259,6 +259,15 @@ Anthropic 클라우드 컨테이너(Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21)에서 �
 | `ensure-engines.cjs` (SessionStart 훅) | 엔진이 있거나 설치 중이면 **0.2초** |
 | `install-engines.cjs` 이어받기 / 오프라인 | apktool 5 MB 부분 파일을 **1초 안에** 이어받아 검증; `archives/`의 릴리스 파일은 네트워크 없이 사용 |
 | `rea-router.cjs` (UserPromptSubmit 훅) | **약 40ms**, CI에서 라우팅 케이스 8/8 |
+
+실제 **Windows 11 x64** 데스크톱(Node 24.19, 가정용 회선), 플러그인 1.0.0 실측:
+
+| 단계 | 결과 |
+|---|---|
+| `node scripts/selftest.mjs` | 라이브 MCP 스모크 포함 전 섹션 통과: **win32에서 207 툴** |
+| 빈 디렉터리에 `install-engines.cjs --force --only jdk,ghidra,jadx,apktool,radare2` | 다운로드 5개(JDK 21 207 MB, Ghidra 570 MB, jadx, apktool, radare2 w64) + SHA-256 + 내장 `tar.exe` 압축 해제 **26.2초** |
+| `launch-rea.cjs doctor` | `ghidra`·`jadx` `available: true`; `ghidra-native_decompiler: win_x86_64/decompile.exe reports pe x86_64, which matches win32/x64`; `ghidra-java: 21.0.12.1; 64-bit; JDK … accepted` |
+| PC에 이미 있던 JDK(IntelliJ `~/.jdks`) | 시스템 JDK 스캔이 찾아 재사용 — JDK 중복 다운로드 없음 |
 | `rea doctor` | ghidra 12.1.4 `available=true`, jadx `available=true` |
 | 작은 ELF Ghidra 디컴파일 | 호출당 ≈ 20초 |
 | 런처 기동 → `tools/list` | 207 툴, 1초 미만 |
