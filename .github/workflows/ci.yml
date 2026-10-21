@@ -7,27 +7,53 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Cross-platform: the same checks on Windows, macOS and Linux, including a live
+  # launcher smoke that boots the real REA server from npm and asserts it serves tools.
+  # On Windows this exercises the npx-cli.js / npx.cmd path for real.
   selftest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: ["22"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Cross-platform self-test (incl. live MCP smoke)
+        run: node scripts/selftest.mjs
+      - name: PowerShell syntax check
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errs = 0
+          foreach ($f in @('scripts/install-engines.ps1', 'desktop/build-mcpb.ps1')) {
+            $tokens = $null; $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f), [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count -gt 0) { Write-Host "FAIL $f"; $parseErrors | ForEach-Object { Write-Host "  $($_.Message)" }; $errs++ } else { Write-Host "ok   $f" }
+          }
+          if ($errs -gt 0) { exit 1 }
+      - name: Windows installer dry check (no downloads)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Run with an empty engine list: exercises parameter parsing, Java detection and
+          # directory handling without fetching Ghidra.
+          powershell -ExecutionPolicy Bypass -File scripts/install-engines.ps1 -Engines none -Dir "$env:RUNNER_TEMP\rea-engines"
+          if (-not (Test-Path "$env:RUNNER_TEMP\rea-engines\install.done")) { Write-Host "install.done missing"; exit 1 }
+
+  # bash-only checks: OAuth gateway flow, remote entrypoint detection, shell syntax.
+  bash-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
-
-      # Offline checks: JSON/manifest shape, shell + node syntax, report generation
-      # from fixtures. The launcher MCP smoke needs rea-agents from npm, so it is a
-      # separate best-effort step below.
-      - name: Self-test (offline)
+      - name: selftest.sh (offline parts)
         run: REA_SELFTEST_SKIP_MCP=1 bash scripts/selftest.sh
-
-      # Best-effort: fetch rea-agents and confirm the launcher serves MCP tools.
-      # Does not fail the build if npm/network is unavailable in the runner.
-      - name: Launcher MCP smoke (best-effort)
-        continue-on-error: true
-        run: bash scripts/selftest.sh
 
   plugin-validate:
     runs-on: ubuntu-latest
@@ -45,3 +71,5 @@ jobs:
           claude plugin validate --strict .claude-plugin/marketplace.json
           claude plugin validate skills
           claude plugin validate commands
+      - name: Validate MCPB manifest
+        run: npx -y @anthropic-ai/mcpb validate desktop/manifest.json

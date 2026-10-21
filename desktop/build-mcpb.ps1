@@ -24,7 +24,7 @@ npm install --omit=dev --no-audit --no-fund "rea-agents@$ReaVersion" | Out-Null
 Pop-Location
 if ($env:KEEP_FRIDA -ne "1") { Remove-Item -Recurse -Force (Join-Path $Stage "server\node_modules\frida") -ErrorAction SilentlyContinue }
 
-$arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "ia32" }
+$arch = switch ($env:PROCESSOR_ARCHITECTURE) { "ARM64" { "arm64" } "AMD64" { "x64" } default { "x64" } }
 $Out = Join-Path $Root "dist\rea-for-claude-win32-$arch.mcpb"
 
 Write-Host "[build-mcpb] validating manifest"

@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="Plugin 0.4.0" src="https://img.shields.io/badge/plugin-0.4.0-7b4bd8">
+  <img alt="Plugin 0.5.0" src="https://img.shields.io/badge/plugin-0.5.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933">
@@ -77,18 +77,41 @@ Then `/rea:doctor`. On Linux, `/rea:install-engines` fetches the engines for you
 </details>
 
 <details>
-<summary><b>Claude Desktop (Windows / macOS) + sessions linked to your PC</b></summary>
+<summary><b>Windows (native) — Claude Code or Claude Desktop</b></summary>
 
 ```powershell
-# Node.js 22/24 installed; quit Claude Desktop completely (tray too), then in a normal terminal:
-npx rea-agents@6.7.0 setup --client claude_desktop
-# restart Claude Desktop → Settings › Developer shows "rea"
+# 1) Node.js 22/24 and a 64-bit JDK 21+ (needed by Ghidra)
+winget install OpenJS.NodeJS.LTS EclipseAdoptium.Temurin.21.JDK
+
+# 2) Engines: Ghidra 12.1.4 (SHA-256 verified) + jadx into %USERPROFILE%\.rea-engines,
+#    and write the paths into %USERPROFILE%\.rea-plugin.json
+git clone https://github.com/NoLucas/REA-for-Claude; cd REA-for-Claude
+powershell -ExecutionPolicy Bypass -File scripts\install-engines.ps1 -WriteConfig
+
+# 3a) Claude Code
+claude plugin marketplace add NoLucas/REA-for-Claude; claude plugin install rea@rea-for-claude
+# 3b) Claude Desktop: build the one-click extension on this PC, then
+#     Settings › Extensions › Advanced › Install Extension… › dist\rea-for-claude-win32-x64.mcpb
+powershell -ExecutionPolicy Bypass -File desktop\build-mcpb.ps1
 ```
-Set engine paths as system environment variables (`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`).
-To use this plugin's launcher instead (config file + WSL mode), point the `rea` entry in
-`claude_desktop_config.json` at `node <repo>/scripts/launch-rea.cjs`.
-Windows tip: `"use_wsl": true` in `~/.rea-plugin.json` runs REA inside WSL so Linux-only
-tooling (binwalk, tshark, mitmproxy) works too.
+
+Native Windows REA covers PE targets (x86 / x64 / ARM) with Ghidra, Android with jadx, and
+the engine-free providers. For Linux-only tooling (binwalk, tshark, mitmproxy) set
+`"use_wsl": true` in `~/.rea-plugin.json`: the launcher runs REA inside WSL and **translates
+`C:\…` paths to `/mnt/c/…` automatically**, so one config serves both modes. Inside WSL,
+`bash scripts/install-engines.sh` installs everything.
+
+REA's own `npx rea-agents@6.7.0 setup --client claude_desktop` also works (quit Claude
+Desktop completely first, run from a normal terminal); point its `rea` entry at
+`node <repo>\scripts\launch-rea.cjs` if you want the config file / WSL mode.
+</details>
+
+<details>
+<summary><b>macOS — Claude Code or Claude Desktop</b></summary>
+
+Install Ghidra 12.1.4 + JDK 21 (`brew install --cask temurin@21`), set `ghidra_install_dir`
+in `~/.rea-plugin.json`, then either `claude plugin install rea@rea-for-claude` or build the
+extension with `bash desktop/build-mcpb.sh`.
 </details>
 
 <details>
@@ -114,8 +137,8 @@ Add `https://<tunnel>/<REA_PATH_SECRET>/mcp` under claude.ai → Settings → Co
 | 🖥️ **One-click desktop extension** | `desktop/build-mcpb.sh` / `.ps1` bundles REA into a `.mcpb` with a settings panel for engine paths; uses Claude Desktop's built-in Node, no install needed. |
 | 🔐 **OAuth-protected remote** | `remote/docker-compose.oauth.yml` adds a dependency-free OAuth 2.1 gateway (DCR + PKCE + login page) so the appliance can be a claude.ai custom connector without a path secret. |
 | 🎛️ **User-configurable** | `~/.rea-plugin.json`: engine paths, which engines to install, report format/dir, WSL mode, REA version, env passthrough. Blank values are ignored. |
-| 🧪 **Tested** | `scripts/selftest.sh` + GitHub Actions: manifest shape, shell/node syntax, report fixtures, and a live MCP smoke that boots the server and asserts 207 tools. |
-| 🪟 **Windows-aware** | Native Windows for PE targets; `use_wsl` for the full Linux toolset. No `userConfig` dependency, so Claude Desktop can start the server itself. |
+| 🧪 **Tested on 3 OSes** | `scripts/selftest.mjs` runs on Windows, macOS and Linux in CI: manifest shape, syntax, report/diff fixtures, launcher env handling, and a live MCP smoke that boots the real server and asserts it serves tools. |
+| 🪟 **Windows-native** | `install-engines.ps1`, `.mcpb` build on Windows, npx without cmd.exe quoting, automatic `C:\` → `/mnt/c/` translation in WSL mode. No `userConfig` dependency, so Claude Desktop can start the server itself. |
 
 ## 🔍 How it works
 
@@ -212,8 +235,10 @@ Measured in an Anthropic cloud container (Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21):
 scripts/
   launch-rea.cjs       universal launcher
   install-engines.sh   Linux installer (Ghidra, jadx, apt) — idempotent, selectable
+  install-engines.ps1  Windows installer (Ghidra, jadx; -SetEnv / -WriteConfig)
   make-report.mjs      REA evidence → HTML/Markdown report, plus --diff
-  selftest.sh          offline checks + live MCP smoke (used by CI)
+  selftest.mjs         cross-platform checks (Windows/macOS/Linux CI)
+  selftest.sh          bash-only checks: OAuth gateway, entrypoint detection
   rea-config.example.json
 desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1  (Claude Desktop .mcpb)
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
@@ -222,6 +247,22 @@ tests/fixtures/        small REA evidence samples
 remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/ · README
 .github/workflows/     ci.yml
 ```
+
+## 🩹 Troubleshooting (Windows first)
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `spawn npx.cmd EINVAL` | Node ≥ 22 refuses to spawn `.cmd` without a shell | Fixed in the launcher: it runs npm's `npx-cli.js` with the Node binary directly, no cmd.exe. Update the plugin. |
+| `GHIDRA_INSTALL_DIR must be absolute` | A host passed a blank setting as `""` | The launcher drops blanks; if you set it yourself, use a full path like `C:\tools\ghidra_12.1.4_PUBLIC` |
+| `provider_unavailable` for Ghidra on Windows | No 64-bit JDK 21+ with `javac` on PATH, or Ghidra ≠ 12.1.x | `winget install EclipseAdoptium.Temurin.21.JDK`, re-run `install-engines.ps1`, then `/rea:doctor` |
+| Claude Desktop shows no `rea` server | MSIX build reads `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Roaming\Claude\claude_desktop_config.json`, not `%APPDATA%` | Install the `.mcpb` instead, or run REA's `setup --client claude_desktop` with the app fully quit |
+| `.ps1 cannot be loaded … execution policy` | Default policy blocks scripts | Run with `powershell -ExecutionPolicy Bypass -File …` (as shown) |
+| Ghidra zip flagged by Defender / slow extract | Large archive with many small files | Add an exclusion for `%USERPROFILE%\.rea-engines` or wait; the SHA-256 check guarantees integrity |
+| WSL mode can't find Ghidra | Windows path given, WSL expects Linux path | Automatic since 0.5.0 (`C:\x` → `/mnt/c/x`); or point at a Ghidra installed inside WSL |
+| Tools time out on big binaries | Headless analysis is slow | Raise `REA_GHIDRA_STARTUP_TIMEOUT_MS` under `env`; analyse once, then per-function calls |
+
+Run `node scripts/selftest.mjs` on any OS to check the plugin itself; CI runs it on Windows,
+macOS and Linux for every push.
 
 ## ❓ FAQ
 
@@ -252,7 +293,8 @@ remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.
 
 ```bash
 git clone https://github.com/NoLucas/REA-for-Claude && cd REA-for-Claude
-bash scripts/selftest.sh            # offline checks + live MCP smoke (REA_SELFTEST_SKIP_MCP=1 to skip)
+node scripts/selftest.mjs           # any OS: offline checks + live MCP smoke (REA_SELFTEST_SKIP_MCP=1 to skip)
+bash scripts/selftest.sh            # Linux/macOS: adds the OAuth gateway and entrypoint checks
 claude plugin validate --strict .claude-plugin/plugin.json
 ```
 

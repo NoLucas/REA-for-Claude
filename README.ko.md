@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="Plugin 0.4.0" src="https://img.shields.io/badge/plugin-0.4.0-7b4bd8">
+  <img alt="Plugin 0.5.0" src="https://img.shields.io/badge/plugin-0.5.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933">
@@ -76,18 +76,41 @@ claude --plugin-dir ./REA-for-Claude
 </details>
 
 <details>
-<summary><b>Claude Desktop (Windows / macOS) + PC에 연결된 세션</b></summary>
+<summary><b>Windows (네이티브) — Claude Code 또는 Claude Desktop</b></summary>
 
 ```powershell
-# Node.js 22/24 설치 후, Claude Desktop을 완전히 종료(트레이까지)하고 일반 터미널에서:
-npx rea-agents@6.7.0 setup --client claude_desktop
-# Claude Desktop 재시작 → 설정 › 개발자 탭에 "rea"가 보이면 성공
+# 1) Node.js 22/24 와 64비트 JDK 21+ (Ghidra에 필요)
+winget install OpenJS.NodeJS.LTS EclipseAdoptium.Temurin.21.JDK
+
+# 2) 엔진: Ghidra 12.1.4(SHA-256 검증) + jadx를 %USERPROFILE%\.rea-engines 에 설치하고
+#    경로를 %USERPROFILE%\.rea-plugin.json 에 기록
+git clone https://github.com/NoLucas/REA-for-Claude; cd REA-for-Claude
+powershell -ExecutionPolicy Bypass -File scripts\install-engines.ps1 -WriteConfig
+
+# 3a) Claude Code
+claude plugin marketplace add NoLucas/REA-for-Claude; claude plugin install rea@rea-for-claude
+# 3b) Claude Desktop: 이 PC에서 원클릭 확장을 빌드한 뒤
+#     설정 › 확장 › 고급 › Install Extension… › dist\rea-for-claude-win32-x64.mcpb
+powershell -ExecutionPolicy Bypass -File desktop\build-mcpb.ps1
 ```
-엔진 경로는 시스템 환경변수(`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`)로 지정하세요.
-이 플러그인의 런처(설정 파일 + WSL 모드)를 쓰려면 `claude_desktop_config.json`의 `rea` 항목을
-`node <저장소>/scripts/launch-rea.cjs`로 바꾸면 됩니다.
-Windows 팁: `~/.rea-plugin.json`에 `"use_wsl": true`를 주면 REA가 WSL 안에서 실행돼
-Linux 전용 도구(binwalk, tshark, mitmproxy)까지 쓸 수 있습니다.
+
+네이티브 Windows REA는 Ghidra로 PE 대상(x86 / x64 / ARM), jadx로 Android, 그리고 엔진 불필요
+프로바이더를 지원합니다. Linux 전용 도구(binwalk, tshark, mitmproxy)가 필요하면
+`~/.rea-plugin.json`에 `"use_wsl": true`를 주세요. 런처가 REA를 WSL 안에서 실행하고 **`C:\…`
+경로를 `/mnt/c/…`로 자동 변환**하므로 설정 하나로 두 모드를 다 씁니다. WSL 안에서는
+`bash scripts/install-engines.sh`로 전부 설치됩니다.
+
+REA 자체의 `npx rea-agents@6.7.0 setup --client claude_desktop`도 됩니다(Claude Desktop을 완전히
+종료하고 일반 터미널에서). 설정 파일/WSL 모드를 쓰려면 `rea` 항목을
+`node <저장소>\scripts\launch-rea.cjs`로 바꾸세요.
+</details>
+
+<details>
+<summary><b>macOS — Claude Code 또는 Claude Desktop</b></summary>
+
+Ghidra 12.1.4 + JDK 21(`brew install --cask temurin@21`)을 설치하고 `~/.rea-plugin.json`에
+`ghidra_install_dir`을 적은 뒤, `claude plugin install rea@rea-for-claude` 또는
+`bash desktop/build-mcpb.sh`로 확장을 빌드하세요.
 </details>
 
 <details>
@@ -113,8 +136,8 @@ claude.ai → Settings → Connectors → *Add custom connector*에 `https://<�
 | 🖥️ **원클릭 데스크톱 확장** | `desktop/build-mcpb.sh` / `.ps1`이 REA를 엔진 경로 설정 패널이 달린 `.mcpb`로 묶습니다. Claude Desktop 내장 Node를 써서 별도 설치 불필요. |
 | 🔐 **OAuth 보호 원격** | `remote/docker-compose.oauth.yml`이 의존성 없는 OAuth 2.1 게이트웨이(DCR + PKCE + 로그인 페이지)를 붙여, 경로 비밀 없이 claude.ai 커스텀 커넥터로 쓸 수 있습니다. |
 | 🎛️ **사용자 설정** | `~/.rea-plugin.json`: 엔진 경로, 설치할 엔진, 리포트 형식/경로, WSL 모드, REA 버전, env 통과. 빈 값은 무시. |
-| 🧪 **테스트** | `scripts/selftest.sh` + GitHub Actions: 매니페스트 구조, 셸/노드 문법, 리포트 픽스처, 그리고 서버를 실제로 띄워 207툴을 확인하는 라이브 MCP 스모크. |
-| 🪟 **Windows 고려** | PE 대상은 네이티브 Windows로, 전체 Linux 도구는 `use_wsl`로. `userConfig`에 의존하지 않아 Claude Desktop이 서버를 직접 띄울 수 있습니다. |
+| 🧪 **3개 OS에서 테스트** | `scripts/selftest.mjs`가 CI에서 Windows·macOS·Linux로 실행: 매니페스트 구조, 문법, 리포트/diff 픽스처, 런처 env 처리, 그리고 실제 서버를 띄워 툴 제공을 확인하는 라이브 MCP 스모크. |
+| 🪟 **Windows 네이티브** | `install-engines.ps1`, Windows에서의 `.mcpb` 빌드, cmd.exe 인용 없는 npx 실행, WSL 모드의 `C:\` → `/mnt/c/` 자동 변환. `userConfig`에 의존하지 않아 Claude Desktop이 서버를 직접 띄울 수 있습니다. |
 
 ## 🔍 동작 원리
 
@@ -211,8 +234,10 @@ Anthropic 클라우드 컨테이너(Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21)에서 �
 scripts/
   launch-rea.cjs       범용 런처
   install-engines.sh   Linux 설치기 (Ghidra, jadx, apt) — 멱등, 선택형
+  install-engines.ps1  Windows 설치기 (Ghidra, jadx; -SetEnv / -WriteConfig)
   make-report.mjs      REA evidence → HTML/Markdown 리포트, --diff 포함
-  selftest.sh          오프라인 점검 + 라이브 MCP 스모크 (CI가 사용)
+  selftest.mjs         크로스플랫폼 점검 (Windows/macOS/Linux CI)
+  selftest.sh          bash 전용 점검: OAuth 게이트웨이, 엔트리포인트 감지
   rea-config.example.json
 desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1  (Claude Desktop .mcpb)
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
@@ -221,6 +246,22 @@ tests/fixtures/        소형 REA evidence 샘플
 remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/ · README
 .github/workflows/     ci.yml
 ```
+
+## 🩹 문제 해결 (Windows 우선)
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| `spawn npx.cmd EINVAL` | Node ≥ 22는 셸 없이 `.cmd` 실행을 거부 | 런처가 고침: npm의 `npx-cli.js`를 Node 바이너리로 직접 실행(cmd.exe 미사용). 플러그인 업데이트. |
+| `GHIDRA_INSTALL_DIR must be absolute` | 호스트가 빈 설정을 `""`로 전달 | 런처가 빈 값을 버림; 직접 지정할 땐 `C:\tools\ghidra_12.1.4_PUBLIC` 같은 전체 경로 |
+| Windows에서 Ghidra `provider_unavailable` | PATH에 64비트 JDK 21+(`javac` 포함)가 없거나 Ghidra가 12.1.x가 아님 | `winget install EclipseAdoptium.Temurin.21.JDK` → `install-engines.ps1` 재실행 → `/rea:doctor` |
+| Claude Desktop에 `rea` 서버가 안 보임 | MSIX 빌드는 `%APPDATA%`가 아니라 `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Roaming\Claude\claude_desktop_config.json`을 읽음 | `.mcpb`로 설치하거나, 앱을 완전히 종료한 뒤 REA의 `setup --client claude_desktop` 실행 |
+| `.ps1 cannot be loaded … execution policy` | 기본 정책이 스크립트 차단 | 안내대로 `powershell -ExecutionPolicy Bypass -File …` |
+| Ghidra zip을 Defender가 잡거나 압축 해제가 느림 | 작은 파일이 많은 큰 아카이브 | `%USERPROFILE%\.rea-engines` 제외 등록 또는 대기; SHA-256 검증이 무결성 보장 |
+| WSL 모드에서 Ghidra를 못 찾음 | Windows 경로를 줬는데 WSL은 Linux 경로 기대 | 0.5.0부터 자동 변환(`C:\x` → `/mnt/c/x`); 또는 WSL 안에 설치한 Ghidra 지정 |
+| 큰 바이너리에서 타임아웃 | 헤드리스 분석이 느림 | `env`의 `REA_GHIDRA_STARTUP_TIMEOUT_MS` 증가; 한 번 분석 후 함수 단위 호출 |
+
+어느 OS에서든 `node scripts/selftest.mjs`로 플러그인 자체를 점검할 수 있고, CI는 매 푸시마다
+Windows·macOS·Linux에서 이를 실행합니다.
 
 ## ❓ FAQ
 
@@ -251,7 +292,8 @@ remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.
 
 ```bash
 git clone https://github.com/NoLucas/REA-for-Claude && cd REA-for-Claude
-bash scripts/selftest.sh            # 오프라인 점검 + 라이브 MCP 스모크 (REA_SELFTEST_SKIP_MCP=1로 건너뛰기)
+node scripts/selftest.mjs           # 모든 OS: 오프라인 점검 + 라이브 MCP 스모크 (REA_SELFTEST_SKIP_MCP=1로 건너뛰기)
+bash scripts/selftest.sh            # Linux/macOS: OAuth 게이트웨이·엔트리포인트 점검 추가
 claude plugin validate --strict .claude-plugin/plugin.json
 ```
 

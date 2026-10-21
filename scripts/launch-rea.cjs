@@ -49,6 +49,8 @@ const ENGINES = {
 };
 
 const log = (msg) => process.stderr.write(`[rea-plugin] ${msg}\n`);
+// POSIX single-quote escaping for values embedded in `bash -lc` (WSL mode).
+const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const clean = (v) =>
   typeof v === 'string' && v.trim() !== '' && !v.trim().startsWith('${') ? v.trim() : undefined;
 
@@ -156,13 +158,20 @@ function main() {
 
   let command;
   let args;
+  let useShell = false;
   if (useWsl) {
+    // Windows paths in the config are translated for WSL (C:\x\y -> /mnt/c/x/y) so users can
+    // keep one config for both modes. Values that are already POSIX paths pass through.
+    const toWsl = (v) => {
+      const m = /^([A-Za-z]):[\\/](.*)$/.exec(v);
+      return m ? `/mnt/${m[1].toLowerCase()}/${m[2].replace(/\\/g, '/')}` : v;
+    };
     const distro = clean(config.wsl_distro);
     const exportsList = ['GHIDRA_INSTALL_DIR', 'REA_JADX_MCP_JAR', 'REA_KUNA_COMMAND', 'REA_IDA_MCP_CONFIG', 'REA_BROWSER_EXECUTABLE']
       .filter((k) => env[k])
-      .map((k) => `export ${k}=${JSON.stringify(env[k])};`)
+      .map((k) => `export ${k}=${shellQuote(toWsl(env[k]))};`)
       .join(' ');
-    const inner = `${exportsList} exec npx -y rea-agents@${version} ${reaArgs.join(' ')}`;
+    const inner = `${exportsList} exec npx -y rea-agents@${version} ${reaArgs.map(shellQuote).join(' ')}`;
     command = 'wsl.exe';
     args = [...(distro ? ['-d', distro] : []), '--', 'bash', '-lc', inner];
     log(`starting REA ${version} inside WSL${distro ? ` (${distro})` : ''}`);
@@ -172,17 +181,28 @@ function main() {
     const rc = clean(env.REA_PLUGIN_REA_COMMAND) || clean(config.rea_command);
     delete env.REA_PLUGIN_REA_COMMAND;
     if (/\.(mjs|cjs|js)$/i.test(rc)) { command = process.execPath; args = [rc, ...reaArgs]; }
+    else if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(rc)) { command = rc; args = reaArgs; useShell = true; }
     else { command = rc; args = reaArgs; }
     log(`starting REA via ${rc}`);
   } else {
-    command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-    args = ['-y', `rea-agents@${version}`, ...reaArgs];
+    // npx. On Windows, prefer running npm's npx-cli.js with this Node binary: it avoids the
+    // cmd.exe quoting layer and Node's refusal to spawn .cmd files without a shell (EINVAL,
+    // CVE-2024-27980). Fall back to npx.cmd through the shell when npx-cli.js is not beside node.
+    const npxCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
+    if (process.platform === 'win32' && fs.existsSync(npxCli)) {
+      command = process.execPath; args = [npxCli, '-y', `rea-agents@${version}`, ...reaArgs];
+    } else {
+      command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+      args = ['-y', `rea-agents@${version}`, ...reaArgs];
+      useShell = process.platform === 'win32';
+    }
   }
 
   const child = spawn(command, args, {
     env,
     stdio: 'inherit',
-    shell: process.platform === 'win32' && !useWsl && command !== process.execPath,
+    shell: useShell,
+    windowsHide: true,
   });
   child.on('error', (err) => {
     log(`failed to start ${command}: ${err.message}`);

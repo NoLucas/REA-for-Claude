@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "rea-for-claude",
   "display_name": "REA — Reverse Engineer Anything",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "REA's 207 reverse-engineering tools as a one-click Claude Desktop extension. Bundles rea-agents 6.7.0; point it at your Ghidra / jadx / Kuna / IDA installs from the settings panel.",
   "long_description": "Runs the REA (Reverse Engineer Anything) MCP server inside Claude Desktop using the app's built-in Node runtime, so no Node.js install is required. Analysis engines (Ghidra 12.1.4, jadx-headless-mcp 0.7.1, Kuna, IDA) are not bundled: install the ones you need and select their paths in the extension settings. Blank settings are ignored. Sessions linked to this computer can use the tools from claude.ai on the web and your phone.",
   "author": {
