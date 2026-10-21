@@ -54,6 +54,8 @@ That is the whole setup on **Windows, macOS and Linux** — no Java, no Ghidra t
 
 **claude.ai cloud session (web · phone · claude.ai/code)** — fork or push this repository, start a session on it (or attach it to a chat) and ask: *"Analyze `./samples/app.bin` and tell me what it does."* `.mcp.json` starts REA immediately; the same hook installs the engines into the container (≈2 min). To skip the wait, set `Setup script = bash scripts/install-engines.sh` in the environment.
 
+To use REA from a cloud session on **any other repository**, run `/rea:setup-mcp` once in it and commit the three files it writes (`.mcp.json`, `.claude/rea-mcp.cjs`, `.claude/settings.json`); the next session on that repo has the `mcp__rea__*` tools. This is needed because claude.ai cloud sessions do not load plugin-declared MCP servers — only project-level ones — while skills, hooks and commands still load. Local Claude Code and Claude Desktop need nothing of the sort.
+
 **Claude Desktop** — build the one-click extension on your PC and install it under Settings › Extensions › Advanced › Install Extension…:
 
 ```bash
@@ -147,6 +149,7 @@ Why a bundled JDK: Ghidra needs a 64-bit JDK 21+ with `javac`. The installer dow
 | `/rea:install-engines` | Install, repair or upgrade engines (`--dry-run`, `--only`, `--upgrade`, `--wsl`) |
 | `/rea:capabilities` | What REA can do on this host right now, by target type |
 | `/rea:why [prompt]` | Why a prompt was (or wasn't) routed to REA, and how to tune the router |
+| `/rea:setup-mcp` | Register the REA server in this repo's `.mcp.json` — for claude.ai cloud sessions, which skip plugin MCP servers |
 
 | Skill | Purpose |
 |---|---|
@@ -224,6 +227,7 @@ A JDK already on the machine (IntelliJ `~/.jdks`, Temurin, Homebrew, apt) is fou
 | `.ps1 cannot be loaded … execution policy` | Default policy blocks scripts | `powershell -ExecutionPolicy Bypass -File …` |
 | Ghidra zip flagged by Defender / slow extract | Large archive with many small files | Add an exclusion for `%USERPROFILE%\.rea-engines`; SHA-256 guarantees integrity |
 | Tools time out on big binaries | Headless analysis is slow | Raise `REA_GHIDRA_STARTUP_TIMEOUT_MS` under `env`; analyse once, then per-function calls |
+| No `mcp__rea__*` tools in a claude.ai cloud session; Claude "analyses" with grep instead | Cloud sessions skip plugin-declared MCP servers (`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | Start the session on this repo, or run `/rea:setup-mcp` in yours, commit, and start a new session; the SessionStart line and `/rea:doctor` both say when the server is not loaded |
 | Download blocked | Proxy / allow-list | Allow `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `api.adoptium.net` — or drop the files into `~/.rea-engines/archives/` |
 
 `node scripts/selftest.mjs` checks the plugin itself on any OS.
@@ -257,6 +261,8 @@ scripts/
   launch-rea.cjs       universal launcher (also `launch-rea.cjs doctor` with the server's env)
   ensure-engines.cjs   SessionStart hook: check → background install → one status line (--status for the table)
   rea-router.cjs       UserPromptSubmit hook: RE prompt → "use REA + this playbook" (--why)
+  setup-mcp.cjs        /rea:setup-mcp — project-level .mcp.json for hosts that skip plugin MCP servers
+  rea-mcp-bootstrap.cjs  copied into projects as .claude/rea-mcp.cjs; finds the installed plugin's launcher
   install-engines.cjs  Windows / macOS / Linux installer (JDK 21, Ghidra, jadx, apktool, radare2, WSL)
   rea-engines-lib.cjs  shared: version pins, OS detection, config, engine / JDK discovery, validation
   install-engines.sh   Linux / Docker installer (Ghidra, jadx, apt)

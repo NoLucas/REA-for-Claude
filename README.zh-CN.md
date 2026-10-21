@@ -54,6 +54,8 @@ claude plugin install rea@rea-for-claude
 
 **claude.ai 云端会话（网页 · 手机 · claude.ai/code）** — fork 或推送本仓库，在其上开启会话（或把仓库附加到聊天），然后说：*"分析一下 `./samples/app.bin`，告诉我它做什么。"* `.mcp.json` 会立即启动 REA；同一个钩子把引擎装进容器（约 2 分钟）。想跳过等待，在环境里设置 `Setup script = bash scripts/install-engines.sh`。
 
+要在**其他仓库**的云会话里使用 REA，在该仓库运行一次 `/rea:setup-mcp` 并提交它写出的三个文件（`.mcp.json`、`.claude/rea-mcp.cjs`、`.claude/settings.json`）；下一次会话就有 `mcp__rea__*` 工具了。原因是 claude.ai 云会话会加载技能、钩子和命令，却不加载插件声明的 MCP 服务器，只认项目级的。本地 Claude Code 和 Claude Desktop 不需要这一步。
+
 **Claude Desktop** — 在你的电脑上构建一键扩展，然后在 设置 › 扩展 › 高级 › Install Extension… 安装：
 
 ```bash
@@ -147,6 +149,7 @@ docker compose -f docker-compose.oauth.yml up --build
 | `/rea:install-engines` | 安装、修复或升级引擎（`--dry-run`、`--only`、`--upgrade`、`--wsl`） |
 | `/rea:capabilities` | 这台主机上 REA 现在能做什么，按目标类型分组 |
 | `/rea:why [提示]` | 某条提示为什么被（或没被）路由到 REA，以及如何调整路由器 |
+| `/rea:setup-mcp` | 把 REA 服务器注册进本仓库的 `.mcp.json` — 供跳过插件 MCP 服务器的 claude.ai 云会话使用 |
 
 | 技能 | 用途 |
 |---|---|
@@ -224,6 +227,7 @@ docker compose -f docker-compose.oauth.yml up --build
 | `.ps1 cannot be loaded … execution policy` | 默认策略阻止脚本 | `powershell -ExecutionPolicy Bypass -File …` |
 | Ghidra 压缩包被 Defender 拦截 / 解压很慢 | 大压缩包含大量小文件 | 为 `%USERPROFILE%\.rea-engines` 添加排除项；SHA-256 保证完整性 |
 | 大二进制文件超时 | 无头分析很慢 | 在 `env` 下调高 `REA_GHIDRA_STARTUP_TIMEOUT_MS`；分析一次后按函数调用 |
+| claude.ai 云会话里没有 `mcp__rea__*` 工具，Claude 改用 grep "分析" | 云会话跳过插件声明的 MCP 服务器（`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`） | 在本仓库上开会话，或在你的仓库运行 `/rea:setup-mcp` → 提交 → 新会话；SessionStart 那一行和 `/rea:doctor` 都会指出服务器未加载 |
 | 下载被拦截 | 代理 / 白名单 | 放行 `github.com`、`objects.githubusercontent.com`、`release-assets.githubusercontent.com`、`api.adoptium.net` — 或把文件放进 `~/.rea-engines/archives/` |
 
 `node scripts/selftest.mjs` 可在任何系统上检查插件本身。
@@ -257,6 +261,8 @@ scripts/
   launch-rea.cjs       通用启动器（`launch-rea.cjs doctor` 以服务器的环境运行 doctor）
   ensure-engines.cjs   SessionStart 钩子：检查 → 后台安装 → 一行状态（--status 输出表格）
   rea-router.cjs       UserPromptSubmit 钩子：逆向提示 → "使用 REA + 这份流程手册"（--why）
+  setup-mcp.cjs        /rea:setup-mcp — 为跳过插件 MCP 服务器的宿主写项目级 .mcp.json
+  rea-mcp-bootstrap.cjs  复制到项目中作为 .claude/rea-mcp.cjs；定位已安装插件的启动器
   install-engines.cjs  Windows / macOS / Linux 安装器（JDK 21、Ghidra、jadx、apktool、radare2、WSL）
   rea-engines-lib.cjs  共享：版本锁定、系统检测、配置、引擎 / JDK 发现、校验
   install-engines.sh   Linux / Docker 安装器（Ghidra、jadx、apt）

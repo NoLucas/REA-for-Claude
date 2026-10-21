@@ -107,8 +107,17 @@ function main() {
   }
 }
 
+function mcpLine() {
+  const reg = lib.mcpRegistration();
+  if (reg.loaded) return statusOnly ? `  ✓ mcp: rea server registered via ${reg.source}` : null;
+  const where = reg.cloud ? 'this claude.ai cloud session' : 'this session';
+  return `REA: the REA MCP server is NOT loaded in ${where} — the host disables plugin MCP servers (CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS), so there are no mcp__rea__* tools (open_binary, binary_overview, …) and the engines above cannot be used. Fix: run /rea:setup-mcp (writes .mcp.json + .claude/settings.json into ${reg.projectDir}), commit them, and start a new session on this repo — or start the session on github.com/NoLucas/REA-for-Claude, which ships them. If the user asks for reverse engineering before that, say plainly that REA's tools are unavailable in this session instead of analysing by hand as if REA had run.`;
+}
+
 try {
   main();
+  const m = mcpLine();
+  if (m) say(m);
   if (statusOnly) {
     // Full per-engine table with the exact repair command for anything broken (used by /rea:doctor).
     for (const v of lib.validateEngines(lib.readConfig())) say(`  ${v.ok ? '✓' : '✗'} ${v.engine}: ${v.detail}${v.repair ? `  →  ${v.repair}` : ''}`);

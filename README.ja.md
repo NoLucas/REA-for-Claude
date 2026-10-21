@@ -54,6 +54,8 @@ claude plugin install rea@rea-for-claude
 
 **claude.ai クラウドセッション（Web · スマホ · claude.ai/code）** — このリポジトリを fork または push し、その上でセッションを開始（またはチャットにリポジトリを添付）して、*「`./samples/app.bin` を解析して何をするものか教えて」*と頼みます。`.mcp.json` が REA を即座に起動し、同じフックがコンテナにエンジンをインストールします（約 2 分）。待ちたくなければ環境に `Setup script = bash scripts/install-engines.sh` を設定します。
 
+**他のリポジトリ**のクラウドセッションで REA を使うには、そのリポジトリで `/rea:setup-mcp` を一度実行し、書き出される 3 ファイル（`.mcp.json`、`.claude/rea-mcp.cjs`、`.claude/settings.json`）をコミットします。次のセッションから `mcp__rea__*` ツールが使えます。claude.ai のクラウドセッションはスキル・フック・コマンドは読み込みますが、プラグインが宣言した MCP サーバーは読み込まず、プロジェクト単位のものだけを認識するためです。ローカルの Claude Code と Claude Desktop には不要です。
+
 **Claude Desktop** — PC でワンクリック拡張をビルドし、設定 › 拡張機能 › 詳細 › Install Extension… からインストール：
 
 ```bash
@@ -147,6 +149,7 @@ JDK を同梱する理由：Ghidra には `javac` 付きの 64 ビット JDK 21+
 | `/rea:install-engines` | エンジンのインストール・修復・アップグレード（`--dry-run`、`--only`、`--upgrade`、`--wsl`） |
 | `/rea:capabilities` | このホストで今 REA にできることを対象種類別に |
 | `/rea:why [プロンプト]` | プロンプトが REA へルーティングされた（されなかった）理由とルーターの調整方法 |
+| `/rea:setup-mcp` | このリポジトリの `.mcp.json` に REA サーバーを登録 — プラグイン MCP サーバーを読み込まない claude.ai クラウドセッション向け |
 
 | スキル | 用途 |
 |---|---|
@@ -224,6 +227,7 @@ JDK を同梱する理由：Ghidra には `javac` 付きの 64 ビット JDK 21+
 | `.ps1 cannot be loaded … execution policy` | 既定ポリシーがスクリプトをブロック | `powershell -ExecutionPolicy Bypass -File …` |
 | Ghidra の zip が Defender に引っかかる / 展開が遅い | 小さなファイルが大量にある大きなアーカイブ | `%USERPROFILE%\.rea-engines` を除外に追加；SHA-256 が完全性を保証 |
 | 大きなバイナリでツールがタイムアウト | ヘッドレス解析は遅い | `env` の `REA_GHIDRA_STARTUP_TIMEOUT_MS` を上げる；一度解析してから関数単位で呼ぶ |
+| claude.ai クラウドセッションに `mcp__rea__*` ツールが無く、Claude が grep で「解析」する | クラウドセッションはプラグイン宣言の MCP サーバーを読み込まない（`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`） | このリポジトリでセッションを開くか、自分のリポジトリで `/rea:setup-mcp` → コミット → 新しいセッション。SessionStart の 1 行と `/rea:doctor` がサーバー未ロードを知らせる |
 | ダウンロードがブロックされる | プロキシ / 許可リスト | `github.com`、`objects.githubusercontent.com`、`release-assets.githubusercontent.com`、`api.adoptium.net` を許可 — またはファイルを `~/.rea-engines/archives/` に置く |
 
 `node scripts/selftest.mjs` でどの OS でもプラグイン自体を点検できます。
@@ -257,6 +261,8 @@ scripts/
   launch-rea.cjs       汎用ランチャー（`launch-rea.cjs doctor` でサーバーと同じ環境の doctor を実行）
   ensure-engines.cjs   SessionStart フック：確認 → バックグラウンドインストール → 状態 1 行（--status で表）
   rea-router.cjs       UserPromptSubmit フック：RE プロンプト → 「REA + このプレイブックを使う」（--why）
+  setup-mcp.cjs        /rea:setup-mcp — プラグイン MCP サーバーを読み込まないホスト向けのプロジェクト .mcp.json
+  rea-mcp-bootstrap.cjs  プロジェクトに .claude/rea-mcp.cjs として複製；インストール済みプラグインのランチャーを探す
   install-engines.cjs  Windows / macOS / Linux インストーラ（JDK 21、Ghidra、jadx、apktool、radare2、WSL）
   rea-engines-lib.cjs  共通：バージョンピン、OS 検出、設定、エンジン / JDK 検出、検証
   install-engines.sh   Linux / Docker インストーラ（Ghidra、jadx、apt）

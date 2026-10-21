@@ -11,7 +11,10 @@ Report REA's readiness in plain language.
    and apktool/radare2 when installed or selected). Each broken row ends with the exact
    repair command — e.g. a half-extracted Ghidra → `install-engines.cjs --force --only ghidra`,
    a JRE without `javac` → `--force --only jdk`, an older pinned version → `--upgrade`.
-   Offer to run that command; it never starts an install by itself.
+   Offer to run that command; it never starts an install by itself. The table starts with an
+   `mcp:` row: `✓ mcp: rea server registered via …` or a `REA: the REA MCP server is NOT loaded`
+   line — the latter means this host skips plugin MCP servers (claude.ai cloud sessions do); no
+   engine fix helps until `/rea:setup-mcp` has been run, committed, and a new session started.
 2. If an install is in progress, show `tail -5 ~/.rea-engines/install.log` (Windows:
    `type %USERPROFILE%\.rea-engines\install.log`), estimate the remaining time from the
    log (Ghidra is the long download, ~570 MB) and say that REA's analysis tools answer
