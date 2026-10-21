@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="620" viewBox="0 0 1280 620" role="img" aria-label="Upstream REA versus REA for Claude: manual engine setup in one terminal versus a plugin that installs engines itself on every Claude surface">
+<defs><marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9b9aa8"/></marker></defs>
+<rect width="1280" height="620" rx="18" fill="#14141a"/>
+<text x="40" y="48" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700" fill="#9b9aa8" text-anchor="start">Upstream REA</text>
+<text x="40" y="72" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="normal" fill="#9b9aa8" text-anchor="start">a local stdio MCP server — you bring the engines</text>
+<text x="660" y="48" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="22" font-weight="700" fill="#b79bff" text-anchor="start">REA for Claude</text>
+<text x="660" y="72" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="normal" fill="#9b9aa8" text-anchor="start">the same 207 tools, on every Claude surface, engines included</text>
+<line x1="640" y1="30" x2="640" y2="590" stroke="#34343f" stroke-width="1.5" stroke-dasharray="4 6"/>
+<rect x="40" y="100" width="560" height="56" rx="10" fill="#1e1e26" stroke="#ffb36b" stroke-width="1.5"/>
+<text x="320.0" y="124.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">1. Install a JDK 21 by hand</text>
+<text x="320.0" y="144.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">winget / brew / apt, set JAVA_HOME</text>
+<line x1="320" y1="156" x2="320" y2="172" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="40" y="172" width="560" height="56" rx="10" fill="#1e1e26" stroke="#ffb36b" stroke-width="1.5"/>
+<text x="320.0" y="196.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">2. Download Ghidra, unzip, set GHIDRA_INSTALL_DIR</text>
+<text x="320.0" y="216.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">~570 MB, no checksum, no retry</text>
+<line x1="320" y1="228" x2="320" y2="244" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="40" y="244" width="560" height="56" rx="10" fill="#1e1e26" stroke="#ffb36b" stroke-width="1.5"/>
+<text x="320.0" y="268.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">3. Download jadx-headless-mcp, set REA_JADX_MCP_JAR</text>
+<text x="320.0" y="288.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">one more path to get right</text>
+<line x1="320" y1="300" x2="320" y2="316" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="40" y="316" width="560" height="56" rx="10" fill="#1e1e26" stroke="#9b9aa8" stroke-width="1.5"/>
+<text x="320.0" y="340.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">4. npx rea-agents setup</text>
+<text x="320.0" y="360.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">writes MCP registration into one client</text>
+<line x1="320" y1="372" x2="320" y2="388" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="40" y="388" width="560" height="56" rx="10" fill="#1e1e26" stroke="#ff8a8a" stroke-width="1.5"/>
+<text x="320.0" y="412.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">5. Remember to say “use REA” in every prompt</text>
+<text x="320.0" y="432.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">otherwise Claude reaches for strings/objdump</text>
+<text x="40" y="500" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="normal" fill="#9b9aa8" text-anchor="start">Runs where it was set up: that one machine, that one client.</text>
+<text x="40" y="522" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="normal" fill="#9b9aa8" text-anchor="start">No report, no diff of two builds, Windows Ghidra “experimental”.</text>
+<rect x="660" y="100" width="580" height="64" rx="10" fill="#1e1e26" stroke="#b79bff" stroke-width="1.5"/>
+<text x="950.0" y="128.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#b79bff" text-anchor="middle">claude plugin install rea@rea-for-claude</text>
+<text x="950.0" y="148.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">that is the whole setup — Windows · macOS · Linux · cloud</text>
+<line x1="950" y1="164" x2="950" y2="186" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="660" y="186" width="580" height="64" rx="10" fill="#1e1e26" stroke="#7fd49a" stroke-width="1.5"/>
+<text x="950.0" y="214.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">First session: engines install themselves in the background</text>
+<text x="950.0" y="234.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">JDK 21 if needed · Ghidra 12.1.4 (SHA-256) · jadx · apktool/radare2 optional</text>
+<line x1="950" y1="250" x2="950" y2="272" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="660" y="272" width="180" height="78" rx="10" fill="#1e1e26" stroke="#34343f" stroke-width="1.5"/>
+<text x="750.0" y="307.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">Claude Code</text>
+<text x="750.0" y="327.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">any OS · RE prompts auto-routed</text>
+<rect x="860" y="272" width="180" height="78" rx="10" fill="#1e1e26" stroke="#34343f" stroke-width="1.5"/>
+<text x="950.0" y="307.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">Claude Desktop</text>
+<text x="950.0" y="327.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">.mcpb · continue from your phone</text>
+<rect x="1060" y="272" width="180" height="78" rx="10" fill="#1e1e26" stroke="#34343f" stroke-width="1.5"/>
+<text x="1150.0" y="307.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">claude.ai cloud</text>
+<text x="1150.0" y="327.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">no PC · engines in the container</text>
+<line x1="750" y1="350" x2="750" y2="372" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<line x1="950" y1="350" x2="950" y2="372" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<line x1="1150" y1="350" x2="1150" y2="372" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="660" y="372" width="580" height="64" rx="10" fill="#1e1e26" stroke="#34343f" stroke-width="1.5"/>
+<text x="950.0" y="400.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">/rea:analyze → evidence JSON → /rea:report</text>
+<text x="950.0" y="420.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">HTML (6 themes) · Markdown · JSON · evidence bundles · --diff of two builds</text>
+<line x1="950" y1="436" x2="950" y2="458" stroke="#9b9aa8" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="660" y="458" width="580" height="56" rx="10" fill="#1e1e26" stroke="#34343f" stroke-width="1.5"/>
+<text x="950.0" y="482.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" fill="#ecebf2" text-anchor="middle">/rea:doctor self-repair · resumable/offline installs · --upgrade</text>
+<text x="950.0" y="502.0" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="normal" fill="#9b9aa8" text-anchor="middle">the exact fix command for anything broken; pinned, verified versions</text>
+<text x="660" y="560" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="normal" fill="#7fd49a" text-anchor="start">Verified: 207 live tools on win32 · full engine install 26 s on Windows 11 · 3-OS CI</text>
+<text x="660" y="582" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="normal" fill="#9b9aa8" text-anchor="start">Same MIT-licensed REA underneath. Kuna, IDA and Hopper stay yours to supply.</text>
+</svg>

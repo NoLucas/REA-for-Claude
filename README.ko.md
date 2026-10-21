@@ -3,15 +3,20 @@
 <h1 align="center">REA for Claude</h1>
 
 <p align="center">
-  <b>Reverse Engineer Anything — Claude가 있는 모든 곳에서.</b><br>
-  <a href="https://github.com/morluto/rea">REA</a>의 리버스 엔지니어링 툴 207개를 Claude Code, Claude Desktop,
-  그리고 <b>Ghidra가 알아서 설치되는 claude.ai 클라우드 세션</b>에서 쓰고, 결과를 공유용 리포트로 만드세요.
+  <b>Reverse Engineer Anything — Claude가 있는 모든 곳에서, 설정 없이.</b><br>
+  <a href="https://github.com/morluto/rea">REA</a>의 리버스 엔지니어링 툴 207개를 Claude Code(Windows · macOS · Linux), Claude Desktop,
+  claude.ai 클라우드 세션에서 쓰세요. <b>엔진은 알아서 설치되고</b>, 리버스 엔지니어링 요청은 <b>자동으로 REA로 라우팅</b>되며,
+  결과는 공유용 리포트가 됩니다.
+</p>
+
+<p align="center">
+  <img alt="업스트림 REA: 한 머신에서 수동 5단계. REA for Claude: 플러그인 설치 한 줄, 엔진 자동 설치, Claude Code·Claude Desktop·claude.ai 클라우드에서 동작, 리포트와 자가 복구." src="docs/img/upstream-vs-plugin.svg" width="100%">
 </p>
 
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="Plugin 0.5.0" src="https://img.shields.io/badge/plugin-0.5.0-7b4bd8">
+  <img alt="Plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933">
@@ -19,6 +24,7 @@
 
 <p align="center">
   <a href="#-빠른-시작">빠른 시작</a> ·
+  <a href="#-업스트림-rea와-다른-점">REA와 다른 점</a> ·
   <a href="#-기능">기능</a> ·
   <a href="#-동작-원리">동작 원리</a> ·
   <a href="#-커맨드--스킬">커맨드</a> ·
@@ -37,13 +43,36 @@
 | 세션이 도는 곳 | 어떻게 되나 | PC 필요 | 상태 |
 |---|---|:---:|:---:|
 | **claude.ai 클라우드 세션** (웹 · 모바일 · claude.ai/code) | 이 저장소를 붙이면 컨테이너 안에서 REA가 뜨고, **Ghidra 12.1.4 + jadx가 백그라운드로 자동 설치** | ✗ | ✅ 엔드투엔드 검증 |
-| **로컬 Claude Code** (Windows · macOS · Linux) | 플러그인을 설치하면 첫 세션에서 **OS/CPU에 맞는 JDK 21(필요 시) + Ghidra + jadx를 백그라운드로 자동 설치** | ✓ | ✅ 설치기 검증(Linux 실제 설치, Windows/macOS는 CI dry-run) |
+| **로컬 Claude Code** (Windows · macOS · Linux) | 플러그인을 설치하면 첫 세션에서 **OS/CPU에 맞는 JDK 21(필요 시) + Ghidra + jadx를 백그라운드로 자동 설치** | ✓ | ✅ Windows 11·Linux 실기 검증(207 툴, 설치 26초); macOS는 CI |
 | **Claude Desktop + 연결된 claude.ai 세션** | REA는 PC에서 돌고 데스크톱 앱이 툴을 중계 → 폰에서 이어서 사용 가능 | ✓ | ⚠️ REA 팀의 Windows 11 검증 경로 사용 |
 | **로컬 Claude Code** | 플러그인 또는 `.mcp.json` | ✓ | ✅ |
 | **원격 어플라이언스** (Docker + 터널 → 커스텀 커넥터) | REA + 엔진을 Linux 컨테이너에 굽고 HTTPS로 노출 | 서버 | ⚠️ 부품은 검증, 이미지 빌드는 미실행 |
 
 > **법적 안내.** 리버스 엔지니어링은 대상의 라이선스·약관·현지 법을 따라야 합니다.
 > 사용 전 REA 원본의 [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md)를 읽어 주세요.
+
+## 🆚 업스트림 REA와 다른 점
+
+[REA](https://github.com/morluto/rea)(morluto, MIT)가 엔진입니다: Ghidra·jadx·IDA·Hopper·Kuna와 엔진 불필요 분석기 여럿을 움직이는
+MCP 툴 207개. **REA for Claude는 REA를 포크하거나 고치지 않습니다** — 원본 `rea-agents` 패키지를 그대로 실행하고, 그것을
+한 줄 설치·무설정·어디서나 쓰는 Claude 플러그인으로 만드는 데 필요한 것만 얹습니다. 둘 다 MIT이고, 업스트림의 법적 고지와
+프로바이더 라이선스는 그대로 적용됩니다.
+
+| | 업스트림 REA | REA for Claude |
+|---|---|---|
+| **설치** | `npx rea-agents setup` — 그 전에 JDK 21·Ghidra·jadx를 직접 설치하고 `GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `JAVA_HOME`을 손으로 지정 | `claude plugin install rea@rea-for-claude` — SessionStart 훅이 첫 사용 시 JDK 21(없을 때만)·Ghidra 12.1.4(SHA-256 검증)·jadx를 OS/CPU에 맞춰 백그라운드로 설치 |
+| **실행 위치** | 설정한 그 머신, 그 클라이언트(Claude Code, Codex, Cursor, Gemini CLI …) | Windows·macOS·Linux의 Claude Code, Claude Desktop(`.mcpb`, 폰에서 이어지는 연결 세션), PC 없는 claude.ai 클라우드 세션, OAuth 2.1 뒤의 Docker 어플라이언스 |
+| **사용** | 프롬프트에 REA를 쓰라고 직접 말하거나, Claude가 `strings`/`objdump`로 대충 봄 | `UserPromptSubmit` 라우터가 리버스 엔지니어링 요청(영/한: "decompile", 리버싱, `.apk`/`.exe`/펌웨어 파일 + 분석 동사)을 알아보고 REA 툴과 맞는 플레이북으로 유도; `/rea:why`로 설명, allow/deny로 조정 |
+| **가이드** | REA의 `reverse-engineer-anything` 스킬 | 같은 스킬(동봉, MIT) **더하기** 대상별 플레이북(ELF/PE/Mach-O, APK, Electron, 펌웨어, wasm, Go/Rust/Flutter)과 증거를 모으며 진행하는 `/rea:analyze` |
+| **결과물** | 채팅 속 툴 결과 | `/rea:report`: 독립 실행 HTML(테마 6종)/Markdown/JSON, 이동형 evidence 번들, 두 빌드 `--diff`(필드 변화, 추가/삭제 프로시저·문자열, 디컴파일 코드 라인 diff) |
+| **상태 점검** | `rea doctor`가 빠진 것을 알려줌 | `/rea:doctor`가 디스크 상태를 검증(반쯤 풀린 Ghidra, `javac` 없는 JRE, 잘린 jar, 오래된 버전)하고 정확한 복구 명령 출력; `--upgrade`로 안전한 버전 이동 |
+| **네트워크** | 수동 다운로드 | 이어받기(`curl -C -`/HTTP Range), `~/.rea-engines/archives/`로 오프라인 설치, 프록시 인식, 머신당 엔진 디렉터리 하나 공유 |
+| **Windows** | Ghidra 지원 "experimental", WSL은 수동 | 내장 `tar.exe` 네이티브 설치기, `cmd.exe` 인용 없는 npx, `C:\` → `/mnt/c/` 자동 변환, `--wsl` 프로비저닝 — Windows 11 x64 실기 검증 |
+| **배포** | npm 패키지 | 플러그인 마켓플레이스 + 태그마다 서명된 3-OS `.mcpb` 데스크톱 확장; `docs/STABILITY.md`에 1.x 유지 항목 명시 |
+| **바꾸지 않는 것** | Kuna·IDA·Hopper·JEB는 사용자 제공; 분석 의미, 툴 이름, evidence 형식은 REA의 것 | 동일 — 플러그인은 툴 결과를 절대 변형하지 않음 |
+
+Linux 한 대에서 Claude Code만 쓰고 Ghidra가 이미 잡혀 있다면 업스트림 REA만으로 충분합니다. 두 번째 머신, Windows 노트북, 폰,
+Ghidra 없는 팀원, 남에게 보낼 리포트 중 하나라도 등장하는 순간 이 플러그인이 값을 합니다.
 
 ## ⚡ 빠른 시작
 
@@ -163,6 +192,10 @@ claude.ai → Settings → Connectors → *Add custom connector*에 `https://<�
 | 📜 **안정성 보장** | [docs/STABILITY.md](docs/STABILITY.md)에 1.x 동안 유지되는 설정 키, `~/.rea-engines` 레이아웃, CLI 플래그, 파일 스키마를 정리했습니다. |
 
 ## 🔍 동작 원리
+
+<p align="center">
+  <img alt="아키텍처: SessionStart·UserPromptSubmit 훅과 런처가 원본 REA MCP 서버를 감싸고, 스스로 설치되는 ~/.rea-engines 디렉터리를 읽는 구조" src="docs/img/architecture.svg" width="100%">
+</p>
 
 ```mermaid
 flowchart LR
