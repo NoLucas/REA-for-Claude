@@ -11,9 +11,15 @@
     {
       "name": "rea",
       "source": "./",
-      "description": "REA MCP server + reverse-engineering skills. Engines (Ghidra 12.1.4, jadx) auto-install in cloud sessions; Windows can run REA inside WSL.",
+      "description": "REA MCP server + reverse-engineering skills. Engines (JDK 21, Ghidra 12.1.4, jadx) auto-install on first use on Windows, macOS and Linux; Windows can also run REA inside WSL.",
       "category": "security",
-      "tags": ["reverse-engineering", "security", "mcp", "ghidra", "android"]
+      "tags": [
+        "reverse-engineering",
+        "security",
+        "mcp",
+        "ghidra",
+        "android"
+      ]
     }
   ]
 }

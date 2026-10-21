@@ -37,6 +37,7 @@
 | 세션이 도는 곳 | 어떻게 되나 | PC 필요 | 상태 |
 |---|---|:---:|:---:|
 | **claude.ai 클라우드 세션** (웹 · 모바일 · claude.ai/code) | 이 저장소를 붙이면 컨테이너 안에서 REA가 뜨고, **Ghidra 12.1.4 + jadx가 백그라운드로 자동 설치** | ✗ | ✅ 엔드투엔드 검증 |
+| **로컬 Claude Code** (Windows · macOS · Linux) | 플러그인을 설치하면 첫 세션에서 **OS/CPU에 맞는 JDK 21(필요 시) + Ghidra + jadx를 백그라운드로 자동 설치** | ✓ | ✅ 설치기 검증(Linux 실제 설치, Windows/macOS는 CI dry-run) |
 | **Claude Desktop + 연결된 claude.ai 세션** | REA는 PC에서 돌고 데스크톱 앱이 툴을 중계 → 폰에서 이어서 사용 가능 | ✓ | ⚠️ REA 팀의 Windows 11 검증 경로 사용 |
 | **로컬 Claude Code** | 플러그인 또는 `.mcp.json` | ✓ | ✅ |
 | **원격 어플라이언스** (Docker + 터널 → 커스텀 커넥터) | REA + 엔진을 Linux 컨테이너에 굽고 HTTPS로 노출 | 서버 | ⚠️ 부품은 검증, 이미지 빌드는 미실행 |
@@ -72,45 +73,62 @@ claude plugin install rea@rea-for-claude
 # 또는 클론해서
 claude --plugin-dir ./REA-for-Claude
 ```
-그 다음 `/rea:doctor`. Linux면 `/rea:install-engines`가 엔진까지 받아 줍니다.
+
+**Windows · macOS · Linux 모두 설치는 이게 전부입니다.** Java도 Ghidra도 미리 깔 필요가 없습니다.
+설치 후에는 이렇게 진행됩니다.
+
+1. **첫 세션 시작** → 플러그인의 `SessionStart` 훅(`scripts/ensure-engines.cjs`)이
+   `~/.rea-engines`를 확인하고, 비어 있으면 `scripts/install-engines.cjs`를 백그라운드로
+   분리 실행합니다. 세션 컨텍스트에 한 줄을 남겨 Claude가 상황을 알게 합니다:
+   `REA: installing JDK 21 + Ghidra + jadx for windows/x64 in the background … (~810 MB, usually 1–5 min)`.
+2. **설치기가 OS/CPU에 맞는 빌드를 고릅니다**: Eclipse Temurin JDK 21(`windows/x64`,
+   `mac/aarch64`, `mac/x64`, `linux/x64`, `linux/aarch64` — 이미 `javac`가 있는 64비트 JDK 21+가
+   있으면 건너뜀), Ghidra 12.1.4(SHA-256 검증, 플랫폼별 네이티브 디컴파일러),
+   jadx-headless-mcp 0.7.1, Linux에서는 apt 도구까지. 전부 `~/.rea-engines`
+   (`%USERPROFILE%\.rea-engines`)에 들어가며, 같은 PC의 Claude Code·Claude Desktop·클라우드
+   세션이 공유합니다. macOS에서는 격리(quarantine) 속성을 지워 Gatekeeper 경고가 뜨지 않습니다.
+3. **REA는 즉시 시작**됩니다. 설치기가 만들 경로를 미리 넘겨 받고, 내려받은 JDK를 `JAVA_HOME`으로
+   씁니다. 엔진이 필요 없는 프로바이더는 바로 동작하고, Ghidra/jadx 툴은
+   `~/.rea-engines/install.done`이 생길 때까지 `provider_unavailable`을 돌려줍니다 — 그 뒤
+   대상 파일을 `open_binary`로 다시 열면 됩니다(REA는 호출 시점에 엔진을 찾으므로 재시작 불필요).
+4. **REA 사용**: `/rea:doctor`(Ghidra가 쓰는 JDK와, 설치 중이면 로그까지 표시) ·
+   `/rea:analyze <파일>` · `/rea:report`. 이후 세션에서는 같은 훅이 0.2초 만에 "준비됨"으로 끝납니다.
+
+직접 제어하고 싶다면 `~/.rea-plugin.json`에 `"auto_engines": false`를 주면 자동 설치가 꺼지고,
+`/rea:install-engines`(또는 `node scripts/install-engines.cjs [--dry-run]`)로 원할 때 설치할 수
+있으며, `ghidra_install_dir` / `jadx_mcp_jar` / `java_home`으로 직접 설치한 경로를 지정할 수 있습니다.
 </details>
 
 <details>
-<summary><b>Windows (네이티브) — Claude Code 또는 Claude Desktop</b></summary>
-
-```powershell
-# 1) Node.js 22/24 와 64비트 JDK 21+ (Ghidra에 필요)
-winget install OpenJS.NodeJS.LTS EclipseAdoptium.Temurin.21.JDK
-
-# 2) 엔진: Ghidra 12.1.4(SHA-256 검증) + jadx를 %USERPROFILE%\.rea-engines 에 설치하고
-#    경로를 %USERPROFILE%\.rea-plugin.json 에 기록
-git clone https://github.com/NoLucas/REA-for-Claude; cd REA-for-Claude
-powershell -ExecutionPolicy Bypass -File scripts\install-engines.ps1 -WriteConfig
-
-# 3a) Claude Code
-claude plugin marketplace add NoLucas/REA-for-Claude; claude plugin install rea@rea-for-claude
-# 3b) Claude Desktop: 이 PC에서 원클릭 확장을 빌드한 뒤
-#     설정 › 확장 › 고급 › Install Extension… › dist\rea-for-claude-win32-x64.mcpb
-powershell -ExecutionPolicy Bypass -File desktop\build-mcpb.ps1
-```
+<summary><b>Windows 참고 (네이티브 또는 WSL)</b></summary>
 
 네이티브 Windows REA는 Ghidra로 PE 대상(x86 / x64 / ARM), jadx로 Android, 그리고 엔진 불필요
-프로바이더를 지원합니다. Linux 전용 도구(binwalk, tshark, mitmproxy)가 필요하면
-`~/.rea-plugin.json`에 `"use_wsl": true`를 주세요. 런처가 REA를 WSL 안에서 실행하고 **`C:\…`
-경로를 `/mnt/c/…`로 자동 변환**하므로 설정 하나로 두 모드를 다 씁니다. WSL 안에서는
-`bash scripts/install-engines.sh`로 전부 설치됩니다.
+프로바이더를 지원합니다. 설치기는 Node만 있으면 됩니다(Claude Code가 요구하고 Claude Desktop은
+내장). 압축은 Windows 내장 `tar.exe`로 풀고, 사내 프록시는 `HTTPS_PROXY`를 따릅니다.
+Linux 전용 도구(binwalk, tshark, mitmproxy)가 필요하면 `~/.rea-plugin.json`에
+`"use_wsl": true`를 주세요. 런처가 REA를 WSL 안에서 실행하고 **`C:\…` 경로를 `/mnt/c/…`로 자동
+변환**하므로 설정 하나로 두 모드를 다 씁니다. WSL 안에서는 `bash scripts/install-engines.sh`로
+전부 설치됩니다.
+
+Claude Desktop: 이 PC에서 원클릭 확장을 빌드한 뒤
+(`powershell -ExecutionPolicy Bypass -File desktop\build-mcpb.ps1`)
+설정 › 확장 › 고급 › Install Extension… › `dist\rea-for-claude-win32-x64.mcpb`.
+확장도 같은 런처를 쓰므로 `%USERPROFILE%\.rea-engines`를 자동 탐색하고, 엔진이 없으면 같은
+백그라운드 설치를 시작합니다.
 
 REA 자체의 `npx rea-agents@6.7.0 setup --client claude_desktop`도 됩니다(Claude Desktop을 완전히
 종료하고 일반 터미널에서). 설정 파일/WSL 모드를 쓰려면 `rea` 항목을
-`node <저장소>\scripts\launch-rea.cjs`로 바꾸세요.
+`node <저장소>\scripts\launch-rea.cjs`로 바꾸세요. `scripts\install-engines.ps1`은 스크립트
+배포용 PowerShell 전용 설치기로 남아 있습니다.
 </details>
 
 <details>
-<summary><b>macOS — Claude Code 또는 Claude Desktop</b></summary>
+<summary><b>macOS 참고</b></summary>
 
-Ghidra 12.1.4 + JDK 21(`brew install --cask temurin@21`)을 설치하고 `~/.rea-plugin.json`에
-`ghidra_install_dir`을 적은 뒤, `claude plugin install rea@rea-for-claude` 또는
-`bash desktop/build-mcpb.sh`로 확장을 빌드하세요.
+Apple Silicon과 Intel 모두 지원합니다. 설치기가 맞는 Temurin JDK를 받고 Ghidra는
+`mac_arm_64` / `mac_x86_64` 네이티브 디컴파일러를 씁니다. 이미 `brew install --cask temurin@21`이
+되어 있으면 JDK 다운로드는 건너뜁니다. Claude Desktop은 `bash desktop/build-mcpb.sh`로 확장을
+빌드하세요.
 </details>
 
 <details>
@@ -129,14 +147,14 @@ claude.ai → Settings → Connectors → *Add custom connector*에 `https://<�
 | | |
 |---|---|
 | 🌍 **어디서든 실행** | 범용 런처 하나(`scripts/launch-rea.cjs`)가 Claude Code, Claude Desktop, claude.ai 클라우드 세션, Docker를 모두 담당합니다. |
-| ⚙️ **엔진 자동 설치** | Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1, apt 도구 묶음이 Linux에서 백그라운드로 알아서 설치됩니다. 엔진별 선택 가능. |
+| ⚙️ **모든 OS에서 엔진 자동 설치** | 첫 세션에서 JDK 21(쓸 만한 게 없을 때), Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1을 OS와 CPU에 맞춰 백그라운드로 설치합니다 — Windows x64, macOS arm64/x64, Linux x64/arm64. Linux는 apt 도구 묶음까지. 엔진별 선택 가능, 멱등, `~/.rea-engines` 하나를 공유. |
 | 🧭 **가이드 워크플로** | `/rea:analyze`가 대상 유형(네이티브 바이너리·APK·Electron/JS·펌웨어·웹 번들)별 플레이북을 골라 조사하며 증거를 모읍니다. |
 | 📄 **공유용 리포트** | `/rea:report`가 REA evidence를 독립 실행 HTML(라이트/다크) 또는 Markdown 리포트로 만듭니다 — 디컴파일 코드, 개요, provider, confidence, limitations. 의존성 0. |
 | 🔀 **evidence diff** | `/rea:report --diff <before> <after>`로 두 빌드를 비교: 개요 필드 변화, 추가/삭제된 프로시저·문자열·세그먼트, 디컴파일 코드 라인 diff. |
 | 🖥️ **원클릭 데스크톱 확장** | `desktop/build-mcpb.sh` / `.ps1`이 REA를 엔진 경로 설정 패널이 달린 `.mcpb`로 묶습니다. Claude Desktop 내장 Node를 써서 별도 설치 불필요. |
 | 🔐 **OAuth 보호 원격** | `remote/docker-compose.oauth.yml`이 의존성 없는 OAuth 2.1 게이트웨이(DCR + PKCE + 로그인 페이지)를 붙여, 경로 비밀 없이 claude.ai 커스텀 커넥터로 쓸 수 있습니다. |
 | 🎛️ **사용자 설정** | `~/.rea-plugin.json`: 엔진 경로, 설치할 엔진, 리포트 형식/경로, WSL 모드, REA 버전, env 통과. 빈 값은 무시. |
-| 🧪 **3개 OS에서 테스트** | `scripts/selftest.mjs`가 CI에서 Windows·macOS·Linux로 실행: 매니페스트 구조, 문법, 리포트/diff 픽스처, 런처 env 처리, 그리고 실제 서버를 띄워 툴 제공을 확인하는 라이브 MCP 스모크. |
+| 🧪 **3개 OS에서 테스트** | `scripts/selftest.mjs`가 CI에서 Windows·macOS·Linux로 실행: 매니페스트·훅 구조, 문법, 리포트/diff 픽스처, 런처 env 처리, 설치기의 OS별 dry-run 계획, SessionStart 훅의 준비/누락/설치중 상태, 설치 락 처리, 그리고 실제 서버를 띄워 툴 제공을 확인하는 라이브 MCP 스모크. |
 | 🪟 **Windows 네이티브** | `install-engines.ps1`, Windows에서의 `.mcpb` 빌드, cmd.exe 인용 없는 npx 실행, WSL 모드의 `C:\` → `/mnt/c/` 자동 변환. `userConfig`에 의존하지 않아 Claude Desktop이 서버를 직접 띄울 수 있습니다. |
 
 ## 🔍 동작 원리
@@ -148,7 +166,8 @@ flowchart LR
   end
   L -->|env › 설정 파일 › 자동 탐색| C[(~/.rea-plugin.json<br/>~/.rea-engines)]
   L -->|npx rea-agents@6.7.0 mcp| R[REA 서버<br/>207 툴]
-  L -. 클라우드 & 엔진 없음 .-> I[install-engines.sh<br/>백그라운드]
+  H[SessionStart 훅<br/>ensure-engines.cjs] -. 엔진 없음 .-> I[install-engines.cjs / .sh<br/>백그라운드, OS별 JDK + Ghidra + jadx]
+  L -. 엔진 없음 .-> I
   I --> C
   R --> G[Ghidra 12.1.4]
   R --> J[jadx-headless-mcp]
@@ -171,7 +190,7 @@ flowchart LR
 | `/rea:report --diff <before> <after>` | 두 evidence 세트(같은 앱의 두 빌드)를 비교한 변경 리포트 |
 | `/rea:doctor` | MCP 서버 상태, 엔진별 가용 여부, 빠진 엔진의 정확한 해결법 |
 | `/rea:capabilities` | 이 호스트에서 *지금* 가능한 REA 기능을 대상 유형별로 정리 |
-| `/rea:install-engines` | Linux 엔진 설치기(멱등, 선택형) |
+| `/rea:install-engines` | Windows·macOS·Linux 엔진 설치기(멱등, 선택형, `--dry-run`) |
 
 | 스킬 | 용도 |
 |---|---|
@@ -190,7 +209,9 @@ flowchart LR
   "jadx_mcp_jar": "C:\\tools\\jadx-headless-mcp-0.7.1-all.jar",
   "kuna_command": "", "ida_mcp_config": "", "browser_executable": "",
   "engines_dir": "",                       // 기본 ~/.rea-engines
-  "auto_engines": false,                   // 클라우드 세션은 기본 true
+  "java_home": "",                         // 선택; 내려받은 ~/.rea-engines/jdk-21은 자동 탐지
+  "auto_engines": true,                    // 첫 사용 시 백그라운드 설치(모든 OS)
+  "jdk": true,                             // 쓸 만한 JDK가 없으면 JDK 21 다운로드
   "engines": ["ghidra", "jadx", "apt"],    // install-engines가 받을 엔진
   "use_wsl": false, "wsl_distro": "Ubuntu",
   "rea_command": "",                       // 전역 설치면 "rea"
@@ -202,7 +223,9 @@ flowchart LR
 | 키 | 타입 | 기본값 | 비고 |
 |---|---|---|---|
 | `engines` | string[] | `["ghidra","jadx","apt"]` | `apt` = radare2, binwalk, tshark, apktool, binutils, gdb |
-| `auto_engines` | bool | 클라우드 `true`, 그 외 `false` | Ghidra가 없으면 백그라운드 설치(Linux) |
+| `auto_engines` | bool | `true` | Ghidra가 없으면 백그라운드 설치(Windows·macOS·Linux) |
+| `jdk` | bool | `true` | 쓸 만한 JDK 21+가 없으면 Eclipse Temurin JDK 21을 `~/.rea-engines/jdk-21`에 다운로드 |
+| `java_home` | 경로 | 자동 | Ghidra/jadx용 JDK; 환경변수 `JAVA_HOME` → 이 값 → 내려받은 JDK 순 |
 | `engines_dir` | 경로 | `~/.rea-engines` | 자동 탐색 루트 |
 | `report.format` / `report.dir` | `html`·`md`·`both` / 경로 | `html` / `rea-reports` | `/rea:report` 기본값 |
 | `use_wsl` / `wsl_distro` | bool / string | `false` / `Ubuntu` | Windows 전용; 엔진 경로는 Linux 경로 |
@@ -210,7 +233,7 @@ flowchart LR
 | `env` | object | — | REA에 그대로 넘길 추가 변수(타임아웃, 스키마 프로필 등) |
 
 환경변수 대응: `REA_PLUGIN_CONFIG`, `REA_PLUGIN_ENGINES_DIR`, `REA_PLUGIN_ENGINES`,
-`REA_PLUGIN_AUTO_ENGINES=1`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`, 그리고 REA 기본 변수
+`REA_PLUGIN_AUTO_ENGINES=0|1`, `REA_PLUGIN_SKIP_JDK=1`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`, 그리고 REA 기본 변수
 (`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `REA_KUNA_COMMAND`, `REA_IDA_MCP_CONFIG`).
 
 ## 📊 검증 수치
@@ -220,6 +243,8 @@ Anthropic 클라우드 컨테이너(Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21)에서 �
 | 단계 | 결과 |
 |---|---|
 | 빈 디렉터리에서 `install-engines.sh` | **1분 46초** (Ghidra 570 MB 다운로드 + SHA-256 + 압축 해제, jadx, apt 도구) |
+| 빈 디렉터리에서 `install-engines.cjs` (Linux x64, 시스템 Java 없음) | JDK 21(207 MB) + jadx: **약 15초**; Ghidra 12.1.4(570 MB) 다운로드 + SHA-256 + 해제: **약 30초**; 이후 REA doctor가 내려받은 JDK로 `ghidra-java … accepted a 64-bit full JDK 21` 보고 |
+| `ensure-engines.cjs` (SessionStart 훅) | 엔진이 있거나 설치 중이면 **0.2초** |
 | `rea doctor` | ghidra 12.1.4 `available=true`, jadx `available=true` |
 | 작은 ELF Ghidra 디컴파일 | 호출당 ≈ 20초 |
 | 런처 기동 → `tools/list` | 207 툴, 1초 미만 |
@@ -233,8 +258,11 @@ Anthropic 클라우드 컨테이너(Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21)에서 �
 .claude/settings.json  SessionStart 훅: 클라우드 세션에서 엔진 백그라운드 설치
 scripts/
   launch-rea.cjs       범용 런처
-  install-engines.sh   Linux 설치기 (Ghidra, jadx, apt) — 멱등, 선택형
-  install-engines.ps1  Windows 설치기 (Ghidra, jadx; -SetEnv / -WriteConfig)
+  install-engines.cjs  Windows·macOS·Linux 설치기 (JDK 21, Ghidra, jadx) — 훅과 런처가 실행
+  ensure-engines.cjs   SessionStart 훅: 엔진 확인 → 없으면 백그라운드 설치 시작 → 상태 한 줄 출력
+  rea-engines-lib.cjs  공용: OS 감지, 설정, 엔진/JDK 탐색
+  install-engines.sh   Linux/Docker 설치기 (Ghidra, jadx, apt) — 멱등, 선택형
+  install-engines.ps1  Windows PowerShell 전용 설치기 (Ghidra, jadx; -SetEnv / -WriteConfig)
   make-report.mjs      REA evidence → HTML/Markdown 리포트, --diff 포함
   selftest.mjs         크로스플랫폼 점검 (Windows/macOS/Linux CI)
   selftest.sh          bash 전용 점검: OAuth 게이트웨이, 엔트리포인트 감지
@@ -253,7 +281,7 @@ remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.
 |---|---|---|
 | `spawn npx.cmd EINVAL` | Node ≥ 22는 셸 없이 `.cmd` 실행을 거부 | 런처가 고침: npm의 `npx-cli.js`를 Node 바이너리로 직접 실행(cmd.exe 미사용). 플러그인 업데이트. |
 | `GHIDRA_INSTALL_DIR must be absolute` | 호스트가 빈 설정을 `""`로 전달 | 런처가 빈 값을 버림; 직접 지정할 땐 `C:\tools\ghidra_12.1.4_PUBLIC` 같은 전체 경로 |
-| Windows에서 Ghidra `provider_unavailable` | PATH에 64비트 JDK 21+(`javac` 포함)가 없거나 Ghidra가 12.1.x가 아님 | `winget install EclipseAdoptium.Temurin.21.JDK` → `install-engines.ps1` 재실행 → `/rea:doctor` |
+| Windows에서 Ghidra `provider_unavailable` | 백그라운드 설치가 아직 진행 중이거나 실패함 | `/rea:doctor`로 상태 확인 → `%USERPROFILE%\.rea-engines\install.log` 확인 → 실패했으면 `/rea:install-engines` 재실행(JDK 21은 자동으로 내려받음) |
 | Claude Desktop에 `rea` 서버가 안 보임 | MSIX 빌드는 `%APPDATA%`가 아니라 `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Roaming\Claude\claude_desktop_config.json`을 읽음 | `.mcpb`로 설치하거나, 앱을 완전히 종료한 뒤 REA의 `setup --client claude_desktop` 실행 |
 | `.ps1 cannot be loaded … execution policy` | 기본 정책이 스크립트 차단 | 안내대로 `powershell -ExecutionPolicy Bypass -File …` |
 | Ghidra zip을 Defender가 잡거나 압축 해제가 느림 | 작은 파일이 많은 큰 아카이브 | `%USERPROFILE%\.rea-engines` 제외 등록 또는 대기; SHA-256 검증이 무결성 보장 |
@@ -267,7 +295,7 @@ Windows·macOS·Linux에서 이를 실행합니다.
 
 **폰의 claude.ai에서도 되나요?** 네, 두 가지 방식으로요. 이 저장소를 붙인 클라우드 세션은 Anthropic 컨테이너에서 REA를 돌리므로 PC가 필요 없습니다. 또는 PC에 연결된 세션이 데스크톱 앱의 로컬 REA 툴을 중계합니다.
 
-**Ghidra를 직접 설치해야 하나요?** Linux/클라우드에서는 아니요 — `install-engines.sh`가 SHA-256 검증까지 해서 설치합니다. Windows/macOS에서는 Ghidra 12.1.4를 설치하고 `GHIDRA_INSTALL_DIR`을 지정하세요.
+**Ghidra를 직접 설치해야 하나요?** 아니요 — Windows·macOS·Linux·클라우드 모두 첫 세션에서 설치기가 JDK 21(필요 시)·Ghidra 12.1.4(SHA-256 검증)·jadx를 알아서 받습니다. 직접 설치한 것을 쓰려면 `~/.rea-plugin.json`에 `ghidra_install_dir`(및 `java_home`)을 적으세요.
 
 **자동 설치되지 않는 엔진은?** IDA, Kuna, Hopper(상용 또는 수동 설치). 설정에 본인 설치 경로를 적어 주세요.
 

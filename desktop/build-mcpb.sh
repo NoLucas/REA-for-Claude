@@ -14,7 +14,7 @@ REA_VERSION="${REA_VERSION:-6.7.0}"
 
 rm -rf "$STAGE"; mkdir -p "$STAGE/server" "$ROOT/dist"
 cp desktop/manifest.json "$STAGE/manifest.json"
-cp scripts/launch-rea.cjs "$STAGE/server/launch-rea.cjs"
+cp scripts/launch-rea.cjs scripts/rea-engines-lib.cjs scripts/install-engines.cjs scripts/install-engines.sh "$STAGE/server/"
 cp LICENSE "$STAGE/LICENSE"
 [ -f desktop/icon.png ] && cp desktop/icon.png "$STAGE/icon.png" || true
 

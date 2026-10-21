@@ -15,9 +15,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(ROOT);
+const enginesLib = createRequire(import.meta.url)('./rea-engines-lib.cjs');
 let failed = 0;
 const ok = (m) => console.log(`  ok   ${m}`);
 const bad = (m) => { console.log(`  FAIL ${m}`); failed++; };
@@ -26,7 +28,7 @@ const section = (m) => console.log(`== ${m}`);
 section(`platform: ${process.platform} ${process.arch} node ${process.version}`);
 
 section('JSON validity & manifest shape');
-const jsonFiles = ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', '.mcp.json', '.claude/settings.json', 'scripts/rea-config.example.json', 'desktop/manifest.json',
+const jsonFiles = ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', '.mcp.json', '.claude/settings.json', 'hooks/hooks.json', 'scripts/rea-config.example.json', 'desktop/manifest.json',
   ...fs.readdirSync('tests/fixtures').filter((f) => f.endsWith('.json')).map((f) => `tests/fixtures/${f}`)];
 for (const f of jsonFiles) {
   try { JSON.parse(fs.readFileSync(f, 'utf8')); ok(`valid JSON: ${f}`); } catch (e) { bad(`invalid JSON: ${f}: ${e.message}`); }
@@ -40,6 +42,13 @@ try {
   if (d.manifest_version === '0.3' && d.server?.type === 'node' && d.server.entry_point.includes('launch-rea.cjs') && d.user_config?.ghidra_install_dir) ok('desktop/manifest.json shape');
   else bad('desktop/manifest.json shape');
 } catch (e) { bad(`manifest check: ${e.message}`); }
+
+try {
+  const h = JSON.parse(fs.readFileSync('hooks/hooks.json', 'utf8'));
+  const hk = h.hooks?.SessionStart?.[0]?.hooks?.[0];
+  if (hk?.type === 'command' && hk.command === 'node' && hk.args?.[0]?.includes('ensure-engines.cjs')) ok('hooks/hooks.json: SessionStart runs ensure-engines.cjs in exec form');
+  else bad('hooks/hooks.json shape');
+} catch (e) { bad(`hooks check: ${e.message}`); }
 
 section('node syntax');
 for (const f of fs.readdirSync('scripts').filter((f) => /\.(cjs|mjs)$/.test(f))) {
@@ -80,6 +89,55 @@ section('launcher: blank values are dropped (unit)');
     if (out.g === null && out.j === null && out.argv[0] === 'mcp') ok('blank and unresolved ${user_config} values are not passed to REA; "mcp" arg is');
     else bad(`launcher env handling: ${JSON.stringify(out)}`);
   } catch (e) { bad(`launcher probe: ${r.stderr.trim() || e.message}`); }
+}
+
+section('engine installer + SessionStart hook (offline, cross-platform)');
+{
+  const edir = path.join(os.tmpdir(), `rea-engines-selftest-${process.pid}`);
+  fs.rmSync(edir, { recursive: true, force: true });
+  const base = { ...process.env, REA_PLUGIN_ENGINES_DIR: edir, REA_PLUGIN_CONFIG: path.join(os.tmpdir(), 'definitely-missing-rea-config.json') };
+  // dry run: plans per-OS downloads, writes nothing
+  const dry = spawnSync(process.execPath, ['scripts/install-engines.cjs', '--dry-run'], { encoding: 'utf8', env: base, timeout: 60000 });
+  // the installer labels the OS as windows/macos/linux (lib.platformInfo().label), not process.platform
+  const platLabel = enginesLib.platformInfo().label;
+  const planned = /plan: Ghidra 12\.1\.4/.test(dry.stdout) && /plan: jadx-headless-mcp/.test(dry.stdout) && dry.stdout.includes(`platform ${platLabel};`);
+  if (dry.status === 0 && planned && !fs.existsSync(path.join(edir, 'install.lock'))) ok(`install-engines.cjs --dry-run plans Ghidra+jadx for ${platLabel} without touching disk`);
+  else bad(`install-engines.cjs --dry-run: status ${dry.status}\n${dry.stdout}\n${dry.stderr}`);
+  // hook, auto disabled: reports missing, starts nothing
+  const h1 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_AUTO_ENGINES: '0' }, timeout: 30000 });
+  if (h1.status === 0 && /engines missing/.test(h1.stdout) && /auto_engines=false/.test(h1.stdout) && !fs.existsSync(path.join(edir, 'install.log'))) ok('ensure-engines.cjs reports missing engines and respects auto_engines=false');
+  else bad(`ensure-engines.cjs (auto off): ${h1.stdout} ${h1.stderr}`);
+  // hook, --status: never installs
+  const h2 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs', '--status'], { encoding: 'utf8', env: base, timeout: 30000 });
+  if (h2.status === 0 && /engines missing/.test(h2.stdout) && !fs.existsSync(path.join(edir, 'install.log'))) ok('ensure-engines.cjs --status only reports');
+  else bad(`ensure-engines.cjs --status: ${h2.stdout} ${h2.stderr}`);
+  // hook, fake ready layout: Ghidra dir + jar present -> "ready". REA_PLUGIN_SKIP_JDK=1 keeps the
+  // check hermetic: CI runners ship different default JDKs (ubuntu-latest: 17), and a missing
+  // JDK 21 would otherwise turn this into an "engines missing" line without the per-engine marks.
+  fs.mkdirSync(path.join(edir, 'ghidra_12.1.4_PUBLIC', 'support'), { recursive: true });
+  fs.writeFileSync(path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar'), 'x');
+  const h3 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs', '--status'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_SKIP_JDK: '1' }, timeout: 30000 });
+  if (h3.status === 0 && /Ghidra ✓/.test(h3.stdout) && /jadx ✓/.test(h3.stdout)) ok('ensure-engines.cjs discovers an installed layout');
+  else bad(`ensure-engines.cjs (ready): ${h3.stdout} ${h3.stderr}`);
+  // launcher: discovered engines reach REA; a fresh install.lock suppresses a second installer
+  const probe = path.join(os.tmpdir(), `rea-probe2-${process.pid}.mjs`);
+  fs.writeFileSync(probe, "console.log(JSON.stringify({g:process.env.GHIDRA_INSTALL_DIR??null,j:process.env.REA_JADX_MCP_JAR??null}))");
+  const l1 = spawnSync(process.execPath, ['scripts/launch-rea.cjs'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_REA_COMMAND: probe, GHIDRA_INSTALL_DIR: '', REA_JADX_MCP_JAR: '' }, timeout: 30000 });
+  try {
+    const o = JSON.parse(l1.stdout.trim().split('\n').pop());
+    if (o.g === path.join(edir, 'ghidra_12.1.4_PUBLIC') && o.j === path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar')) ok('launcher auto-discovers engines in the engines dir');
+    else bad(`launcher discovery: ${JSON.stringify(o)}`);
+  } catch (e) { bad(`launcher discovery probe: ${l1.stderr.trim() || e.message}`); }
+  fs.rmSync(path.join(edir, 'ghidra_12.1.4_PUBLIC'), { recursive: true, force: true });
+  fs.writeFileSync(path.join(edir, 'install.lock'), '0');
+  const l2 = spawnSync(process.execPath, ['scripts/launch-rea.cjs'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_REA_COMMAND: probe, GHIDRA_INSTALL_DIR: '', REA_PLUGIN_AUTO_ENGINES: '1' }, timeout: 30000 });
+  try {
+    const o = JSON.parse(l2.stdout.trim().split('\n').pop());
+    if (/already running/.test(l2.stderr) && o.g === path.join(edir, 'ghidra_12.1.4_PUBLIC')) ok('launcher pre-sets the Ghidra path and does not start a second installer while install.lock is fresh');
+    else bad(`launcher lock handling: ${l2.stderr} ${JSON.stringify(o)}`);
+  } catch (e) { bad(`launcher lock probe: ${l2.stderr.trim() || e.message}`); }
+  fs.rmSync(probe, { force: true });
+  fs.rmSync(edir, { recursive: true, force: true });
 }
 
 section('launcher MCP smoke (stdio initialize + tools/list)');

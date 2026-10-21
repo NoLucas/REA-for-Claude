@@ -57,9 +57,15 @@ want apt  || SKIP_APT=1
 mkdir -p "$ENGINES"
 LOCK="${ENGINES}/install.lock"
 DONE="${ENGINES}/install.done"
+# Exclusive lock (noclobber): the SessionStart hook and the launcher may both start an
+# installer at the same moment; only the first proceeds. A lock older than 30 min is stale.
+if [ -e "$LOCK" ] && [ -n "$(find "$LOCK" -mmin +30 2>/dev/null)" ]; then rm -f "$LOCK"; fi
+if ! ( set -o noclobber; echo "$$" > "$LOCK" ) 2>/dev/null; then
+  echo "[install-engines] another install is running (${LOCK}); exiting. Follow it with: tail -f ${ENGINES}/install.log"
+  exit 0
+fi
 cleanup() { rm -f "$LOCK"; }
 trap cleanup EXIT
-echo "$$" > "$LOCK"
 
 log() { printf '[install-engines %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 

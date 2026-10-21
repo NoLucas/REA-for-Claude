@@ -18,10 +18,15 @@
  * Empty values are dropped: REA rejects an empty GHIDRA_INSTALL_DIR ("must be absolute"),
  * and some hosts substitute blank plugin settings as "".
  *
- * Cloud mode (CLAUDE_CODE_REMOTE set, or REA_PLUGIN_AUTO_ENGINES=1, or config.auto_engines):
- * if Ghidra is missing on Linux, scripts/install-engines.sh is started detached and REA is
- * started immediately with the paths the installer will produce. REA resolves providers per
- * call, so once the install finishes you only need to re-open the target (open_binary).
+ * Auto-engines (default on every OS; disable with "auto_engines": false or REA_PLUGIN_AUTO_ENGINES=0):
+ * if Ghidra is missing, the matching installer is started detached — install-engines.sh on
+ * Linux with apt, install-engines.cjs on Windows / macOS / other Linux — and REA is started
+ * immediately with the paths the installer will produce. REA resolves providers per call, so
+ * once the install finishes you only need to re-open the target (open_binary).
+ *
+ * JDK: when ~/.rea-engines/jdk-21 exists (installed by install-engines.cjs because no JDK 21+
+ * was found) it is exported as JAVA_HOME and put first on PATH for REA and Ghidra, unless the
+ * user already set JAVA_HOME. config.java_home overrides both.
  *
  * Windows + config.use_wsl: REA is executed inside WSL (wsl.exe -d <distro>) so the Linux-only
  * tooling (binwalk, tshark, mitmproxy, Linux Ghidra) is available while Claude runs on Windows.
@@ -30,14 +35,12 @@
 'use strict';
 
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
-const DEFAULT_REA_VERSION = '6.7.0';
-const GHIDRA_DIR_NAME = 'ghidra_12.1.4_PUBLIC';
-const JADX_JAR_NAME = 'jadx-headless-mcp-0.7.1-all.jar';
-const PLUGIN_ROOT = path.resolve(__dirname, '..');
+const lib = require('./rea-engines-lib.cjs');
+
+const DEFAULT_REA_VERSION = lib.VERSIONS.rea;
 
 // plugin env name -> [real REA env name, config key]
 const ENGINES = {
@@ -51,60 +54,13 @@ const ENGINES = {
 const log = (msg) => process.stderr.write(`[rea-plugin] ${msg}\n`);
 // POSIX single-quote escaping for values embedded in `bash -lc` (WSL mode).
 const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-const clean = (v) =>
-  typeof v === 'string' && v.trim() !== '' && !v.trim().startsWith('${') ? v.trim() : undefined;
-
-function readConfig() {
-  const candidates = [
-    clean(process.env.REA_PLUGIN_CONFIG),
-    path.join(os.homedir(), '.rea-plugin.json'),
-    clean(process.env.CLAUDE_PLUGIN_DATA) && path.join(process.env.CLAUDE_PLUGIN_DATA, 'config.json'),
-  ].filter(Boolean);
-  for (const file of candidates) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (parsed && typeof parsed === 'object') {
-        log(`config: ${file}`);
-        return parsed;
-      }
-    } catch (err) {
-      if (err && err.code !== 'ENOENT') log(`config ${file} ignored: ${err.message}`);
-    }
-  }
-  return {};
-}
-
-function enginesDir(config) {
-  return (
-    clean(process.env.REA_PLUGIN_ENGINES_DIR) ||
-    clean(config.engines_dir) ||
-    (clean(process.env.CLAUDE_PLUGIN_DATA) && path.join(process.env.CLAUDE_PLUGIN_DATA, 'engines')) ||
-    path.join(os.homedir(), '.rea-engines')
-  );
-}
-
-function discover(dir) {
-  const found = {};
-  let entries = [];
-  try {
-    entries = fs.readdirSync(dir);
-  } catch {
-    return found;
-  }
-  const ghidra = entries.filter((e) => /^ghidra_12\.1\.\d+_PUBLIC$/.test(e)).sort().pop();
-  if (ghidra && fs.existsSync(path.join(dir, ghidra, 'support'))) found.GHIDRA_INSTALL_DIR = path.join(dir, ghidra);
-  const jadx = entries.filter((e) => /^jadx-headless-mcp-.*-all\.jar$/.test(e)).sort().pop();
-  if (jadx) found.REA_JADX_MCP_JAR = path.join(dir, jadx);
-  const kuna = entries.find((e) => e === 'kuna' || e === 'kuna.exe');
-  if (kuna) found.REA_KUNA_COMMAND = path.join(dir, kuna);
-  return found;
-}
+const clean = lib.clean;
 
 function main() {
-  const config = readConfig();
+  const config = lib.readConfig(log);
   const env = { ...process.env };
-  const dir = enginesDir(config);
-  const discovered = discover(dir);
+  const dir = lib.enginesDir(config);
+  const discovered = lib.discoverAll(config);
 
   for (const [pluginKey, [reaKey, configKey]] of Object.entries(ENGINES)) {
     const value =
@@ -120,39 +76,59 @@ function main() {
   const version = clean(env.REA_PLUGIN_VERSION) || clean(config.rea_version) || DEFAULT_REA_VERSION;
   delete env.REA_PLUGIN_VERSION;
 
-  const isCloud = Boolean(clean(env.CLAUDE_CODE_REMOTE));
-  const autoEngines =
-    clean(env.REA_PLUGIN_AUTO_ENGINES) === '1' || config.auto_engines === true || (isCloud && config.auto_engines !== false);
+  // JDK: user JAVA_HOME > config.java_home > bundled ~/.rea-engines/jdk-21. Ghidra and the
+  // jadx jar both need it; putting bin/ first on PATH covers tools that call plain `java`.
+  const javaHome = clean(env.JAVA_HOME) || clean(config.java_home) || discovered.JAVA_HOME;
+  if (javaHome && fs.existsSync(lib.javaBin(javaHome))) {
+    env.JAVA_HOME = javaHome;
+    const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path') || 'PATH';
+    const bin = path.join(javaHome, 'bin');
+    if (!(env[pathKey] || '').split(path.delimiter).includes(bin)) env[pathKey] = bin + path.delimiter + (env[pathKey] || '');
+    if (javaHome === discovered.JAVA_HOME) log(`using bundled JDK: ${javaHome}`);
+  }
+
+  const autoEngines = lib.autoEnginesEnabled(config, env);
   delete env.REA_PLUGIN_AUTO_ENGINES;
 
-  const selection = Array.isArray(config.engines) && config.engines.length ? config.engines.join(',') : clean(env.REA_PLUGIN_ENGINES) || 'all';
-  const wants = (name) => /(^|,)(all)(,|$)/.test(selection) || selection.split(',').map((s) => s.trim()).includes(name);
+  const { selection, wants } = lib.engineSelection(config, env);
+  const expected = lib.expectedPaths(dir);
+  const plat = lib.platformInfo();
 
-  if (autoEngines && process.platform === 'linux' && !env.GHIDRA_INSTALL_DIR) {
-    const installer = path.join(PLUGIN_ROOT, 'scripts', 'install-engines.sh');
-    if (wants('ghidra')) env.GHIDRA_INSTALL_DIR = path.join(dir, GHIDRA_DIR_NAME);
-    if (wants('jadx') && !env.REA_JADX_MCP_JAR) env.REA_JADX_MCP_JAR = path.join(dir, JADX_JAR_NAME);
+  // `launch-rea.cjs doctor [--format json]` runs REA's doctor with exactly the environment
+  // the MCP server gets (used by /rea:doctor). It never starts an install.
+  const isDoctor = process.argv[2] === 'doctor';
+  const reaArgs = isDoctor ? process.argv.slice(2) : ['mcp', ...process.argv.slice(2)];
+
+  if (autoEngines && !isDoctor && plat.supported && !env.GHIDRA_INSTALL_DIR && wants('ghidra')) {
+    // Tell REA where the engines *will* be, then install them in the background.
+    env.GHIDRA_INSTALL_DIR = expected.GHIDRA_INSTALL_DIR;
+    if (wants('jadx') && !env.REA_JADX_MCP_JAR) env.REA_JADX_MCP_JAR = expected.REA_JADX_MCP_JAR;
     try {
       fs.mkdirSync(dir, { recursive: true });
-      const lock = path.join(dir, 'install.lock');
-      if (fs.existsSync(lock) && Date.now() - fs.statSync(lock).mtimeMs < 30 * 60 * 1000) {
-        log(`engine install already running (${lock}); REA starts now, re-open targets when it finishes`);
+      const status = lib.installStatus(dir);
+      if (status.running) {
+        log(`engine install already running (${status.lock}); REA starts now, re-open targets when it finishes`);
       } else {
-        const out = fs.openSync(path.join(dir, 'install.log'), 'a');
-        const child = spawn('bash', [installer, '--background'], {
+        const useBash = process.platform === 'linux' && wants('apt') && fs.existsSync('/usr/bin/apt-get');
+        const command = useBash ? 'bash' : process.execPath;
+        const args = useBash
+          ? [path.join(__dirname, 'install-engines.sh'), '--background']
+          : [path.join(__dirname, 'install-engines.cjs'), '--background'];
+        const out = fs.openSync(status.log, 'a');
+        const child = spawn(command, args, {
           detached: true,
           stdio: ['ignore', out, out],
           env: { ...process.env, REA_PLUGIN_ENGINES_DIR: dir, REA_PLUGIN_ENGINES: selection },
+          windowsHide: true,
         });
         child.unref();
-        log(`Ghidra not found; installing engines (${selection}) in the background into ${dir} (log: ${dir}/install.log)`);
+        log(`Ghidra not found; installing engines (${selection}) for ${plat.label} in the background into ${dir} (log: ${status.log})`);
       }
     } catch (err) {
       log(`could not start engine installer: ${err.message}`);
     }
   }
 
-  const reaArgs = ['mcp', ...process.argv.slice(2)];
   const useWsl = process.platform === 'win32' && (config.use_wsl === true || clean(env.REA_PLUGIN_USE_WSL) === '1');
   delete env.REA_PLUGIN_USE_WSL;
 

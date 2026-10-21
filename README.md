@@ -37,8 +37,8 @@ That makes it a Claude Code–terminal tool by default. **REA for Claude** remov
 | Where your session runs | What happens | PC needed | Status |
 |---|---|:---:|:---:|
 | **claude.ai cloud session** (web · mobile · claude.ai/code) | Attach this repo → REA starts in the container, **Ghidra 12.1.4 + jadx auto-install** in the background | ✗ | ✅ verified end-to-end |
+| **Local Claude Code** (Windows · macOS · Linux) | Install the plugin → the first session **auto-installs JDK 21 (if needed) + Ghidra + jadx for your OS/CPU** in the background | ✓ | ✅ installer verified (Linux live, Windows/macOS in CI dry-run) |
 | **Claude Desktop + linked claude.ai session** | REA runs on your PC; the desktop app relays its tools, so you can continue from your phone | ✓ | ⚠️ follows the REA team's Windows 11 path |
-| **Local Claude Code** | Plugin or `.mcp.json` | ✓ | ✅ |
 | **Remote appliance** (Docker + tunnel → custom connector) | REA + engines baked into a Linux container behind HTTPS | server | ⚠️ components verified, image build not run |
 
 > **Legal note.** Reverse engineering must respect the target's license, terms of service and local law.
@@ -73,44 +73,64 @@ claude plugin install rea@rea-for-claude
 # or, from a clone:
 claude --plugin-dir ./REA-for-Claude
 ```
-Then `/rea:doctor`. On Linux, `/rea:install-engines` fetches the engines for you.
+
+That is the whole install on **Windows, macOS and Linux**. Nothing else to pre-install —
+no Java, no Ghidra. What happens next:
+
+1. **First session starts** → the plugin's `SessionStart` hook (`scripts/ensure-engines.cjs`)
+   looks at `~/.rea-engines`, sees it is empty, and starts `scripts/install-engines.cjs`
+   detached in the background. It prints one line into the session context so Claude knows:
+   `REA: installing JDK 21 + Ghidra + jadx for windows/x64 in the background … (~810 MB, usually 1–5 min)`.
+2. **Installer picks the right builds** from your OS and CPU: Eclipse Temurin JDK 21
+   (`windows/x64`, `mac/aarch64`, `mac/x64`, `linux/x64`, `linux/aarch64` — skipped when a
+   64-bit JDK 21+ with `javac` is already usable), Ghidra 12.1.4 (SHA-256 verified, its
+   native decompiler for your platform), jadx-headless-mcp 0.7.1, and on Linux the apt
+   tools. Everything lands in `~/.rea-engines` (`%USERPROFILE%\.rea-engines`), shared by
+   Claude Code, Claude Desktop and cloud sessions on the same machine. macOS gets the
+   quarantine attribute cleared so Gatekeeper never prompts.
+3. **REA starts immediately** with the paths the installer will produce and the bundled JDK
+   exported as `JAVA_HOME`. Engine-free providers work right away; Ghidra/jadx tools answer
+   `provider_unavailable` until `~/.rea-engines/install.done` appears — then
+   `open_binary` the target again (REA resolves engines per call, no restart).
+4. **Using REA**: `/rea:doctor` (shows which JDK Ghidra uses and the install log if it is
+   still running) · `/rea:analyze <file>` · `/rea:report`. The same flow runs in every later
+   session in well under a second, because everything is already there.
+
+Prefer to control it? `"auto_engines": false` in `~/.rea-plugin.json` turns the automatic
+install off, `/rea:install-engines` (or `node scripts/install-engines.cjs [--dry-run]`)
+runs it on demand, and `ghidra_install_dir` / `jadx_mcp_jar` / `java_home` point at your own
+installs.
 </details>
 
 <details>
-<summary><b>Windows (native) — Claude Code or Claude Desktop</b></summary>
-
-```powershell
-# 1) Node.js 22/24 and a 64-bit JDK 21+ (needed by Ghidra)
-winget install OpenJS.NodeJS.LTS EclipseAdoptium.Temurin.21.JDK
-
-# 2) Engines: Ghidra 12.1.4 (SHA-256 verified) + jadx into %USERPROFILE%\.rea-engines,
-#    and write the paths into %USERPROFILE%\.rea-plugin.json
-git clone https://github.com/NoLucas/REA-for-Claude; cd REA-for-Claude
-powershell -ExecutionPolicy Bypass -File scripts\install-engines.ps1 -WriteConfig
-
-# 3a) Claude Code
-claude plugin marketplace add NoLucas/REA-for-Claude; claude plugin install rea@rea-for-claude
-# 3b) Claude Desktop: build the one-click extension on this PC, then
-#     Settings › Extensions › Advanced › Install Extension… › dist\rea-for-claude-win32-x64.mcpb
-powershell -ExecutionPolicy Bypass -File desktop\build-mcpb.ps1
-```
+<summary><b>Windows notes (native or WSL)</b></summary>
 
 Native Windows REA covers PE targets (x86 / x64 / ARM) with Ghidra, Android with jadx, and
-the engine-free providers. For Linux-only tooling (binwalk, tshark, mitmproxy) set
-`"use_wsl": true` in `~/.rea-plugin.json`: the launcher runs REA inside WSL and **translates
-`C:\…` paths to `/mnt/c/…` automatically**, so one config serves both modes. Inside WSL,
-`bash scripts/install-engines.sh` installs everything.
+the engine-free providers. The installer needs only Node (which Claude Code requires and
+Claude Desktop bundles); archives are unpacked with the built-in `tar.exe`, and a corporate
+proxy is honoured through `HTTPS_PROXY`. For Linux-only tooling (binwalk, tshark, mitmproxy)
+set `"use_wsl": true` in `~/.rea-plugin.json`: the launcher runs REA inside WSL and
+**translates `C:\…` paths to `/mnt/c/…` automatically**, so one config serves both modes.
+Inside WSL, `bash scripts/install-engines.sh` installs everything.
+
+Claude Desktop: build the one-click extension on this PC
+(`powershell -ExecutionPolicy Bypass -File desktop\build-mcpb.ps1`), then
+Settings › Extensions › Advanced › Install Extension… › `dist\rea-for-claude-win32-x64.mcpb`.
+The extension uses the same launcher, so it auto-discovers `%USERPROFILE%\.rea-engines` and
+starts the same background install if the engines are missing.
 
 REA's own `npx rea-agents@6.7.0 setup --client claude_desktop` also works (quit Claude
 Desktop completely first, run from a normal terminal); point its `rea` entry at
 `node <repo>\scripts\launch-rea.cjs` if you want the config file / WSL mode.
+`scripts\install-engines.ps1` remains as a PowerShell-only installer for scripted setups.
 </details>
 
 <details>
-<summary><b>macOS — Claude Code or Claude Desktop</b></summary>
+<summary><b>macOS notes</b></summary>
 
-Install Ghidra 12.1.4 + JDK 21 (`brew install --cask temurin@21`), set `ghidra_install_dir`
-in `~/.rea-plugin.json`, then either `claude plugin install rea@rea-for-claude` or build the
+Apple Silicon and Intel are both supported; the installer fetches the matching Temurin JDK
+and Ghidra uses its `mac_arm_64` / `mac_x86_64` native decompiler. If you already have
+`brew install --cask temurin@21` the download is skipped. For Claude Desktop build the
 extension with `bash desktop/build-mcpb.sh`.
 </details>
 
@@ -130,14 +150,14 @@ Add `https://<tunnel>/<REA_PATH_SECRET>/mcp` under claude.ai → Settings → Co
 | | |
 |---|---|
 | 🌍 **Runs anywhere** | One universal launcher (`scripts/launch-rea.cjs`) serves Claude Code, Claude Desktop, claude.ai cloud sessions and Docker. |
-| ⚙️ **Self-installing engines** | Ghidra 12.1.4 (SHA-256 verified), jadx-headless-mcp 0.7.1 and the apt toolset install themselves on Linux — in the background, selectable per engine. |
+| ⚙️ **Self-installing engines, every OS** | On the first session the plugin installs JDK 21 (when none is usable), Ghidra 12.1.4 (SHA-256 verified) and jadx-headless-mcp 0.7.1 for your OS and CPU — Windows x64, macOS arm64/x64, Linux x64/arm64 — in the background, plus the apt toolset on Linux. Selectable per engine, idempotent, one shared `~/.rea-engines`. |
 | 🧭 **Guided workflows** | `/rea:analyze` picks a playbook per target type (native binary, APK, Electron/JS, firmware, web bundle) and collects evidence as it goes. |
 | 📄 **Shareable reports** | `/rea:report` renders REA evidence into a self-contained HTML (light/dark) or Markdown report — decompiled code, overviews, provider, confidence, limitations. Zero dependencies. |
 | 🔀 **Evidence diffs** | `/rea:report --diff <before> <after>` compares two builds: changed overview fields, added/removed procedures, strings and segments, and a line diff of decompiled code. |
 | 🖥️ **One-click desktop extension** | `desktop/build-mcpb.sh` / `.ps1` bundles REA into a `.mcpb` with a settings panel for engine paths; uses Claude Desktop's built-in Node, no install needed. |
 | 🔐 **OAuth-protected remote** | `remote/docker-compose.oauth.yml` adds a dependency-free OAuth 2.1 gateway (DCR + PKCE + login page) so the appliance can be a claude.ai custom connector without a path secret. |
 | 🎛️ **User-configurable** | `~/.rea-plugin.json`: engine paths, which engines to install, report format/dir, WSL mode, REA version, env passthrough. Blank values are ignored. |
-| 🧪 **Tested on 3 OSes** | `scripts/selftest.mjs` runs on Windows, macOS and Linux in CI: manifest shape, syntax, report/diff fixtures, launcher env handling, and a live MCP smoke that boots the real server and asserts it serves tools. |
+| 🧪 **Tested on 3 OSes** | `scripts/selftest.mjs` runs on Windows, macOS and Linux in CI: manifest and hook shape, syntax, report/diff fixtures, launcher env handling, the installer's per-OS dry-run plan, the SessionStart hook's ready/missing/installing states, install-lock handling, and a live MCP smoke that boots the real server and asserts it serves tools. |
 | 🪟 **Windows-native** | `install-engines.ps1`, `.mcpb` build on Windows, npx without cmd.exe quoting, automatic `C:\` → `/mnt/c/` translation in WSL mode. No `userConfig` dependency, so Claude Desktop can start the server itself. |
 
 ## 🔍 How it works
@@ -149,7 +169,8 @@ flowchart LR
   end
   L -->|env › config › auto-discover| C[(~/.rea-plugin.json<br/>~/.rea-engines)]
   L -->|npx rea-agents@6.7.0 mcp| R[REA server<br/>207 tools]
-  L -. cloud & engine missing .-> I[install-engines.sh<br/>background]
+  H[SessionStart hook<br/>ensure-engines.cjs] -. engine missing .-> I[install-engines.cjs / .sh<br/>background, per-OS JDK + Ghidra + jadx]
+  L -. engine missing .-> I
   I --> C
   R --> G[Ghidra 12.1.4]
   R --> J[jadx-headless-mcp]
@@ -160,6 +181,8 @@ flowchart LR
 
 - **Why a launcher?** Hosts may pass blank settings as `""`, which REA rejects ("must be absolute"); the server must start instantly in the cloud and fetch engines afterwards; Windows needs a WSL branch.
 - **Why deferred install works.** REA resolves the Ghidra provider when `open_binary` is called, not at startup (confirmed by test). Re-open the target after the install finishes.
+- **Why a bundled JDK.** Ghidra needs a 64-bit JDK 21+ with `javac`; most machines don't have one. The installer only downloads Eclipse Temurin when `JAVA_HOME`, `~/.rea-engines/jdk-21` and `PATH` all fail that test, and the launcher exports it as `JAVA_HOME` for REA — verified by REA's own `ghidra-java` doctor check.
+- **Why two installers.** `install-engines.cjs` runs anywhere Node runs (it is what the hook and the launcher start); `install-engines.sh` stays for Docker, cloud setup scripts and the apt toolset, which the Node installer delegates to on Linux.
 - **Why both `.mcp.json` and `plugin.json`.** Cloud/local sessions read the project `.mcp.json`; plugin installs read `plugin.json`. Same `rea` server; the latter wins when installed as a plugin.
 - `rea mcp --http` exists on REA `main` but not in npm 6.7.0, so the remote appliance bridges stdio → Streamable HTTP with `supergateway` for now.
 
@@ -172,7 +195,7 @@ flowchart LR
 | `/rea:report --diff <before> <after>` | Diff two evidence sets (two builds of the same app) into a change report |
 | `/rea:doctor` | Is the MCP server healthy? Which engines are available, and the exact fix for missing ones |
 | `/rea:capabilities` | What REA can do *right now* on this host, grouped by target type |
-| `/rea:install-engines` | Linux engine installer (idempotent, selectable) |
+| `/rea:install-engines` | Engine installer for Windows, macOS and Linux (idempotent, selectable, `--dry-run`) |
 
 | Skill | Purpose |
 |---|---|
@@ -190,8 +213,10 @@ flowchart LR
   "ghidra_install_dir": "C:\\tools\\ghidra_12.1.4_PUBLIC",   // or Linux path
   "jadx_mcp_jar": "C:\\tools\\jadx-headless-mcp-0.7.1-all.jar",
   "kuna_command": "", "ida_mcp_config": "", "browser_executable": "",
+  "java_home": "",                         // optional; bundled ~/.rea-engines/jdk-21 is auto-detected
   "engines_dir": "",                       // default ~/.rea-engines
-  "auto_engines": false,                   // cloud sessions default to true
+  "auto_engines": true,                    // background install on first use (all OSes)
+  "jdk": true,                             // download JDK 21 when none is usable
   "engines": ["ghidra", "jadx", "apt"],    // what install-engines fetches
   "use_wsl": false, "wsl_distro": "Ubuntu",
   "rea_command": "",                       // e.g. "rea" for a global install
@@ -203,7 +228,9 @@ flowchart LR
 | Key | Type | Default | Notes |
 |---|---|---|---|
 | `engines` | string[] | `["ghidra","jadx","apt"]` | `apt` = radare2, binwalk, tshark, apktool, binutils, gdb |
-| `auto_engines` | bool | `true` in cloud, else `false` | background install when Ghidra is missing (Linux) |
+| `auto_engines` | bool | `true` | background install when Ghidra is missing (Windows, macOS, Linux) |
+| `jdk` | bool | `true` | download Eclipse Temurin JDK 21 into `~/.rea-engines/jdk-21` when no usable JDK 21+ is found |
+| `java_home` | path | auto | JDK for Ghidra/jadx; `JAVA_HOME` in the environment wins, then this, then the bundled JDK |
 | `engines_dir` | path | `~/.rea-engines` | auto-discovery root |
 | `report.format` / `report.dir` | `html`·`md`·`both` / path | `html` / `rea-reports` | defaults for `/rea:report` |
 | `use_wsl` / `wsl_distro` | bool / string | `false` / `Ubuntu` | Windows only; engine paths become Linux paths |
@@ -211,8 +238,9 @@ flowchart LR
 | `env` | object | — | extra variables passed to REA (timeouts, schema profiles…) |
 
 Environment equivalents: `REA_PLUGIN_CONFIG`, `REA_PLUGIN_ENGINES_DIR`, `REA_PLUGIN_ENGINES`,
-`REA_PLUGIN_AUTO_ENGINES=1`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`, and the plain REA
-variables (`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `REA_KUNA_COMMAND`, `REA_IDA_MCP_CONFIG`).
+`REA_PLUGIN_AUTO_ENGINES=0|1`, `REA_PLUGIN_SKIP_JDK=1`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`,
+and the plain REA variables (`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `REA_KUNA_COMMAND`,
+`REA_IDA_MCP_CONFIG`, `JAVA_HOME`).
 
 ## 📊 Verified numbers
 
@@ -221,6 +249,8 @@ Measured in an Anthropic cloud container (Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21):
 | Step | Result |
 |---|---|
 | `install-engines.sh` from empty dir | **1 min 46 s** (Ghidra 570 MB download + SHA-256 + unzip, jadx, apt tools) |
+| `install-engines.cjs` from empty dir (Linux x64, no system Java) | JDK 21 (207 MB) + jadx: **~15 s**; Ghidra 12.1.4 (570 MB) download + SHA-256 + extract: **~30 s**; REA doctor then reports `ghidra-java … accepted a 64-bit full JDK 21` from the bundled JDK |
+| `ensure-engines.cjs` (SessionStart hook) | **0.2 s** when engines are present or already installing |
 | `rea doctor` | ghidra 12.1.4 `available=true`, jadx `available=true` |
 | Ghidra decompile, small ELF | ≈ 20 s per call |
 | Launcher boot → `tools/list` | 207 tools, < 1 s |
@@ -231,11 +261,15 @@ Measured in an Anthropic cloud container (Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21):
 ```
 .claude-plugin/        plugin.json · marketplace.json (repo doubles as a marketplace)
 .mcp.json              project MCP server for cloud/local sessions (loads without a prompt)
-.claude/settings.json  SessionStart hook: background engine install in cloud sessions
+.claude/settings.json  SessionStart hook for repo/cloud sessions (same ensure-engines.cjs)
+hooks/hooks.json       SessionStart hook for plugin installs: node scripts/ensure-engines.cjs
 scripts/
-  launch-rea.cjs       universal launcher
-  install-engines.sh   Linux installer (Ghidra, jadx, apt) — idempotent, selectable
-  install-engines.ps1  Windows installer (Ghidra, jadx; -SetEnv / -WriteConfig)
+  launch-rea.cjs       universal launcher (also `launch-rea.cjs doctor` with the server's env)
+  ensure-engines.cjs   SessionStart hook: check engines → start background install → one status line
+  install-engines.cjs  Windows/macOS/Linux installer (JDK 21, Ghidra, jadx) — what the hook/launcher run
+  rea-engines-lib.cjs  shared: OS detection, config, engine/JDK discovery
+  install-engines.sh   Linux/Docker installer (Ghidra, jadx, apt) — idempotent, selectable
+  install-engines.ps1  Windows PowerShell-only installer (Ghidra, jadx; -SetEnv / -WriteConfig)
   make-report.mjs      REA evidence → HTML/Markdown report, plus --diff
   selftest.mjs         cross-platform checks (Windows/macOS/Linux CI)
   selftest.sh          bash-only checks: OAuth gateway, entrypoint detection
@@ -254,7 +288,7 @@ remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.
 |---|---|---|
 | `spawn npx.cmd EINVAL` | Node ≥ 22 refuses to spawn `.cmd` without a shell | Fixed in the launcher: it runs npm's `npx-cli.js` with the Node binary directly, no cmd.exe. Update the plugin. |
 | `GHIDRA_INSTALL_DIR must be absolute` | A host passed a blank setting as `""` | The launcher drops blanks; if you set it yourself, use a full path like `C:\tools\ghidra_12.1.4_PUBLIC` |
-| `provider_unavailable` for Ghidra on Windows | No 64-bit JDK 21+ with `javac` on PATH, or Ghidra ≠ 12.1.x | `winget install EclipseAdoptium.Temurin.21.JDK`, re-run `install-engines.ps1`, then `/rea:doctor` |
+| `provider_unavailable` for Ghidra on Windows/macOS | The background install is still running or failed | `/rea:doctor` shows the state; read `~/.rea-engines/install.log`; if it failed, `/rea:install-engines` (JDK 21 is downloaded automatically when none is usable) |
 | Claude Desktop shows no `rea` server | MSIX build reads `%LOCALAPPDATA%\Packages\Claude_…\LocalCache\Roaming\Claude\claude_desktop_config.json`, not `%APPDATA%` | Install the `.mcpb` instead, or run REA's `setup --client claude_desktop` with the app fully quit |
 | `.ps1 cannot be loaded … execution policy` | Default policy blocks scripts | Run with `powershell -ExecutionPolicy Bypass -File …` (as shown) |
 | Ghidra zip flagged by Defender / slow extract | Large archive with many small files | Add an exclusion for `%USERPROFILE%\.rea-engines` or wait; the SHA-256 check guarantees integrity |
@@ -268,7 +302,7 @@ macOS and Linux for every push.
 
 **Does this work in claude.ai on my phone?** Yes — in two ways. A cloud session (this repo attached) runs REA in Anthropic's container, no PC involved. Or a session linked to your PC relays the desktop app's local REA tools.
 
-**Do I need to install Ghidra myself?** Not on Linux/cloud: `install-engines.sh` does it (SHA-256 verified). On Windows/macOS, install Ghidra 12.1.4 and set `GHIDRA_INSTALL_DIR`.
+**Do I need to install Ghidra myself?** No — on Windows, macOS, Linux and in the cloud the first session installs JDK 21 (when needed), Ghidra 12.1.4 (SHA-256 verified) and jadx for you. To use your own installs, set `ghidra_install_dir` (and `java_home`) in `~/.rea-plugin.json`.
 
 **Which engines are *not* auto-installed?** IDA, Kuna and Hopper (commercial or manual). Point the config at your own copies.
 
