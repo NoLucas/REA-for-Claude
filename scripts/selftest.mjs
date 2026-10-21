@@ -140,6 +140,32 @@ section('engine installer + SessionStart hook (offline, cross-platform)');
   fs.rmSync(edir, { recursive: true, force: true });
 }
 
+section('rea-router: reverse-engineering prompts route to REA, others are untouched');
+{
+  const cases = [
+    ['이 app.apk 파일 분석해서 뭐 하는 앱인지 알려줘', true],
+    ['reverse engineer ./samples/firmware.bin', true],
+    ['What does agent.exe do? dump its imports', true],
+    ['decompile this', true],
+    ['Refactor the auth module in src/auth.ts', false],
+    ['Explain the architecture of this repo', false],
+    ['/commit', false],
+    ['install node_modules and run tests', false],
+  ];
+  let good = 0;
+  for (const [prompt, expect] of cases) {
+    const r = spawnSync(process.execPath, ['scripts/rea-router.cjs'], { input: JSON.stringify({ prompt }), encoding: 'utf8', timeout: 20000 });
+    const routed = r.stdout.includes('"hookEventName":"UserPromptSubmit"') && r.stdout.includes('[REA]');
+    if (r.status === 0 && routed === expect) good++;
+    else bad(`rea-router: "${prompt}" -> routed=${routed}, expected ${expect} ${r.stderr.trim()}`);
+  }
+  if (good === cases.length) ok(`rea-router classified ${good}/${cases.length} prompts as expected`);
+  const h = JSON.parse(fs.readFileSync('hooks/hooks.json', 'utf8'));
+  const u = h.hooks?.UserPromptSubmit?.[0]?.hooks?.[0];
+  if (u?.command === 'node' && u.args?.[0]?.includes('rea-router.cjs')) ok('hooks/hooks.json: UserPromptSubmit runs rea-router.cjs');
+  else bad('hooks/hooks.json: UserPromptSubmit hook missing');
+}
+
 section('launcher MCP smoke (stdio initialize + tools/list)');
 if (process.env.REA_SELFTEST_SKIP_MCP === '1') console.log('  skip (REA_SELFTEST_SKIP_MCP=1)');
 else {
