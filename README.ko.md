@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-7b4bd8">
+  <img alt="Plugin 1.1.0" src="https://img.shields.io/badge/plugin-1.1.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Windows · macOS · Linux" src="https://img.shields.io/badge/os-Windows%20%7C%20macOS%20%7C%20Linux-555">
@@ -43,6 +43,18 @@ claude plugin install rea@rea-for-claude
 ```
 
 **Windows · macOS · Linux** 모두 이게 전부입니다. Java도 Ghidra도 미리 깔 필요 없습니다.
+
+### 어디서 쓰시나요?
+
+| 환경 | 할 일 |
+|---|---|
+| **Claude Code** (터미널, 모든 OS) | 위 두 줄이면 끝. |
+| **Claude Desktop** | 플러그인 설치(또는 아래 `.mcpb` 확장). 끝. |
+| **claude.ai 웹·폰, 내 PC와 연결된 세션** | 그 PC의 Claude Desktop에 플러그인이 설치되어 있으면 끝. REA는 내 PC에서 돌고 툴이 세션으로 중계됩니다(`mcp__remote-devices__plugin_rea_rea__*`). 경로는 그 PC 기준이고, PC는 켜 둬야 합니다. |
+| **claude.ai 클라우드 세션, PC 연결 없음** | 이 저장소로 세션을 시작하거나, 내 저장소에서 `/rea:setup-mcp` → 생성된 파일 3개 커밋 → 그 저장소로 새 세션. 저장소 없이 시작한 세션은 이 파일들을 보존하지 못합니다. |
+| **PC를 꺼도 항상** | [원격 어플라이언스](remote/README.ko.md)를 claude.ai 커스텀 커넥터로. |
+
+잘 모르겠으면 **`/rea:start`**를 입력하세요. 지금 세션에서 REA를 어디서 쓸 수 있는지 확인하고, 고칠 수 있는 건 고치고, 무엇을 물어보면 되는지 알려 줍니다.
 
 1. **첫 세션** — `SessionStart` 훅이 비어 있는 `~/.rea-engines`를 보고 설치기를 백그라운드로 띄웁니다. Claude에게는 `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)` 한 줄이 전달됩니다.
 2. **설치기** — OS/CPU에 맞는 빌드를 고릅니다: Temurin JDK 21(PC에 JDK 21+가 없을 때만), Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1; Linux는 apt 도구, 원하면 apktool / radare2.
@@ -142,6 +154,7 @@ JDK를 내려받는 이유: Ghidra는 `javac`가 있는 64비트 JDK 21+가 필�
 
 | 커맨드 | 하는 일 |
 |---|---|
+| `/rea:start` | 여기서 시작: 지금 세션에서 REA를 어디서 쓸 수 있는지(여기, 연결된 내 PC, 아직 불가), 고칠 것, 물어볼 것 |
 | `/rea:analyze <경로> [목표]` | 대상 유형 판별 → 맞는 플레이북 실행 → 모든 결과를 `./rea-evidence/*.json`에 저장 |
 | `/rea:report [디렉터리] [--format html\|md\|json\|both\|all] [--theme …] [--bundle]` | 공유용 리포트 생성; `--bundle`은 이동형 evidence 파일 작성 |
 | `/rea:report --diff <before> <after>` | 두 evidence 세트 또는 번들을 비교한 변경 리포트 |
@@ -227,7 +240,7 @@ PC에 이미 있는 JDK(IntelliJ `~/.jdks`, Temurin, Homebrew, apt)는 찾아서
 | `.ps1 cannot be loaded … execution policy` | 기본 정책이 스크립트 차단 | `powershell -ExecutionPolicy Bypass -File …` |
 | Defender가 Ghidra zip을 잡거나 압축 해제가 느림 | 작은 파일이 많은 큰 아카이브 | `%USERPROFILE%\.rea-engines` 예외 추가; SHA-256이 무결성 보장 |
 | 큰 바이너리에서 타임아웃 | 헤드리스 분석이 느림 | `env`의 `REA_GHIDRA_STARTUP_TIMEOUT_MS`를 올리고, 한 번 분석한 뒤 함수 단위 호출 |
-| claude.ai 클라우드 세션에 `mcp__rea__*` 툴이 없고 Claude가 grep으로 "분석"함 | 클라우드 세션은 플러그인이 선언한 MCP 서버를 건너뜀(`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | 이 저장소에서 세션을 열거나, 내 저장소에서 `/rea:setup-mcp` 실행 → 커밋 → 새 세션. SessionStart 한 줄과 `/rea:doctor`가 서버 미로드 상태를 알려줌 |
+| claude.ai 클라우드 세션에 `mcp__rea__*` 툴이 없고 Claude가 grep으로 "분석"함 | 클라우드 세션은 플러그인이 선언한 MCP 서버를 건너뜀(`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | 세션이 내 PC와 연결되어 있고 그 PC의 Claude Desktop에 플러그인이 있으면 REA 툴은 `mcp__remote-devices__plugin_rea_rea__*`로 이미 있음. 아니면 이 저장소에서 세션을 열거나, 내 저장소에서 `/rea:setup-mcp` 실행 → 커밋 → 새 세션. SessionStart 한 줄과 `/rea:doctor`가 서버 미로드 상태를 알려줌 |
 | 다운로드 차단 | 프록시 / 허용 목록 | `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `api.adoptium.net` 허용 — 또는 파일을 `~/.rea-engines/archives/`에 넣기 |
 
 `node scripts/selftest.mjs`로 어느 OS에서든 플러그인 자체를 점검할 수 있습니다.

@@ -90,7 +90,9 @@ function main() {
     '',
     'MCP servers are loaded when a session starts, so this takes effect in the NEXT session.',
     reg.cloud
-      ? 'This is a cloud session: commit these three files and start a new session on this repository — uncommitted files do not survive into a new cloud container.'
+      ? (lib.insideGitRepo(projectDir)
+        ? 'This is a cloud session: commit these three files and start a new session on this repository — uncommitted files do not survive into a new cloud container.'
+        : `WARNING: ${projectDir} is not a git repository. In a cloud session these files vanish with the container, so a new session will not have them. Either run this inside a repository and commit the files, or link the session to a computer whose Claude desktop app has the REA plugin (then nothing needs setting up).`)
       : 'Restart Claude Code in this directory (or reconnect from /mcp) to pick it up.',
   ].join('\n') + '\n');
 }

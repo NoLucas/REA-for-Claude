@@ -111,7 +111,16 @@ function mcpLine() {
   const reg = lib.mcpRegistration();
   if (reg.loaded) return statusOnly ? `  ✓ mcp: rea server registered via ${reg.source}` : null;
   const where = reg.cloud ? 'this claude.ai cloud session' : 'this session';
-  return `REA: the REA MCP server is NOT loaded in ${where} — the host disables plugin MCP servers (CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS), so there are no mcp__rea__* tools (open_binary, binary_overview, …) and the engines above cannot be used. Fix: run /rea:setup-mcp (writes .mcp.json + .claude/settings.json into ${reg.projectDir}), commit them, and start a new session on this repo — or start the session on github.com/NoLucas/REA-for-Claude, which ships them. If the user asks for reverse engineering before that, say plainly that REA's tools are unavailable in this session instead of analysing by hand as if REA had run.`;
+  const linked = lib.LINKED_TOOL_PREFIX;
+  const git = lib.insideGitRepo(reg.projectDir);
+  const repoStep = git
+    ? `run /rea:setup-mcp here, commit the three files it writes, and start new sessions on this repository`
+    : `run /rea:setup-mcp in a git repository (${reg.projectDir} is not one, so files written here vanish with this container), commit the three files it writes, and start new sessions on that repository`;
+  return [
+    `REA: the REA MCP server is NOT loaded in ${where} — the host skips plugin MCP servers (CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS), so no mcp__rea__* tools come from this container. Before telling the user REA is unavailable, check your tool list (tools may be deferred — search for "open_binary"):`,
+    `  • ${linked}* tools (e.g. ${linked}open_binary) mean this session is linked to the user's computer and REA is running there in Claude Desktop. Use them: nothing needs setting up, target paths are paths on that computer, and the engine status above describes this container, not that computer (${linked}binary_session reports theirs).`,
+    `  • Otherwise REA is unavailable in this session. Tell the user, in their language, the ways to get it: (1) link this session to a computer whose Claude desktop app has the REA plugin installed; (2) ${repoStep}; (3) start a session on github.com/NoLucas/REA-for-Claude, which ships the files. /rea:start walks them through it. Do not analyse by hand and present it as REA output.`,
+  ].join('\n');
 }
 
 try {

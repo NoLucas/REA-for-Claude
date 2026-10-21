@@ -1,8 +1,8 @@
 {
   "name": "rea",
   "displayName": "REA — Reverse Engineer Anything",
-  "version": "1.0.0",
-  "description": "Runs the REA (Reverse Engineer Anything) MCP server wherever your Claude session runs: Claude Code, Claude Desktop (and claude.ai sessions linked to it), and claude.ai cloud sessions. Engines install themselves on first use on Windows, macOS and Linux — JDK 21 if needed, Ghidra 12.1.4 (SHA-256 verified), jadx, optional apktool/radare2 — picked for your OS and CPU, resumable and offline-capable, with self-repair and a pinned upgrade path. Reverse-engineering prompts are routed to REA automatically. Ships REA's investigation skill, guided per-target workflows, a shareable HTML/Markdown report generator, and /rea:analyze, /rea:report, /rea:doctor, /rea:capabilities, /rea:install-engines, /rea:setup-mcp (project-level .mcp.json for claude.ai cloud sessions, which skip plugin MCP servers).",
+  "version": "1.1.0",
+  "description": "Runs the REA (Reverse Engineer Anything) MCP server wherever your Claude session runs: Claude Code, Claude Desktop (and claude.ai sessions linked to it), and claude.ai cloud sessions. Engines install themselves on first use on Windows, macOS and Linux — JDK 21 if needed, Ghidra 12.1.4 (SHA-256 verified), jadx, optional apktool/radare2 — picked for your OS and CPU, resumable and offline-capable, with self-repair and a pinned upgrade path. Reverse-engineering prompts are routed to REA automatically. Ships REA's investigation skill, guided per-target workflows, a shareable HTML/Markdown report generator, and /rea:start (where REA can run in this session — locally, on the computer a claude.ai session is linked to, or not yet — and what to do), /rea:analyze, /rea:report, /rea:doctor, /rea:capabilities, /rea:install-engines, /rea:setup-mcp (project-level .mcp.json for claude.ai cloud sessions, which skip plugin MCP servers).",
   "author": {
     "name": "NoLucas",
     "url": "https://github.com/NoLucas"

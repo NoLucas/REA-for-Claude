@@ -1,6 +1,6 @@
 ---
 name: rea-anywhere
-description: Operating notes for the REA plugin's MCP server in each place a Claude session can run — local Claude Code on Windows / macOS / Linux and claude.ai cloud sessions (engines auto-install in the background on all of them), Claude Desktop / linked sessions, and the remote Docker appliance. Use when a REA tool returns provider_unavailable, when Ghidra/jadx/Java seem missing, before the first REA call in a fresh session, or when the user asks where to put a target file.
+description: Operating notes for the REA plugin's MCP server in each place a Claude session can run — local Claude Code on Windows / macOS / Linux and claude.ai cloud sessions (engines auto-install in the background on all of them), Claude Desktop / claude.ai sessions linked to a computer (tools named mcp__remote-devices__plugin_rea_rea__*), and the remote Docker appliance. Use when a REA tool returns provider_unavailable, when there are no mcp__rea__* tools, when Ghidra/jadx/Java seem missing, before the first REA call in a fresh session, or when the user asks where to put a target file.
 ---
 
 # REA anywhere
@@ -48,12 +48,18 @@ choose pieces.
 
 - **The plugin's MCP server is not loaded here.** Cloud sessions set
   `CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`: skills, hooks and commands load, plugin-declared MCP
-  servers do not. `mcp__rea__*` tools exist only when the project registers the server itself —
-  a session started on the REA-for-Claude repository has that (`.mcp.json`); any other
-  repository needs `/rea:setup-mcp` once (writes `.mcp.json`, `.claude/rea-mcp.cjs`,
-  `.claude/settings.json`), committed, then a new session. The SessionStart hook says so in
-  its `REA: the REA MCP server is NOT loaded` line. Until then, tell the user REA is
-  unavailable in this session; do not analyse by hand and present it as REA output.
+  servers do not. REA's tools can still reach the session two ways:
+  1. **Linked computer** — if the session is linked to a computer whose Claude desktop app has
+     the REA plugin, its tools appear as `mcp__remote-devices__plugin_rea_rea__*` (often
+     deferred: search for `open_binary`). Use them; see the linked-computer section below.
+  2. **Project registration** — `mcp__rea__*` tools exist when the project registers the server
+     itself: a session started on the REA-for-Claude repository has that (`.mcp.json`); any
+     other repository needs `/rea:setup-mcp` once (writes `.mcp.json`, `.claude/rea-mcp.cjs`,
+     `.claude/settings.json`), committed, then a new session. A session without a repository
+     cannot keep those files — they vanish with the container.
+  The SessionStart hook's `REA: the REA MCP server is NOT loaded` line covers both. With neither,
+  tell the user REA is unavailable in this session and offer `/rea:start`; do not analyse by
+  hand and present it as REA output.
 - Same flow as above; the repo's `.claude/settings.json` hook triggers it, so engines are
   usually ready 1–3 minutes after the session starts. REA itself is available immediately
   for engine-free providers (managed .NET static analysis, artifact graphs,
@@ -81,9 +87,17 @@ choose pieces.
 
 ## Claude Desktop and claude.ai sessions linked to a computer
 
-- REA runs on the user's computer; its tools are relayed into the session. Paths are
-  paths on that computer (Windows paths on Windows). The computer must stay on with the
-  Claude desktop app running.
+- REA runs on the user's computer; its tools are relayed into the session. In a claude.ai
+  session they are named `mcp__remote-devices__plugin_rea_rea__<tool>` (for example
+  `…__open_binary`, `…__binary_session`) instead of `mcp__rea__<tool>`; the arguments are the
+  same. Paths are paths on that computer (Windows paths on Windows). The computer must stay on
+  with the Claude desktop app running.
+- The SessionStart hook and `ensure-engines.cjs --status` run in the cloud container, so their
+  engine lines describe the container, not the user's computer. Call the relayed
+  `binary_session` to see the computer's engines.
+- Files on the user's computer: analyse them where they are with the relayed tools (ask the
+  user for the path). Files uploaded to the cloud session are not visible to the computer's
+  REA.
 - The `.mcpb` extension uses the same launcher, so it auto-discovers `~/.rea-engines`; if
   the engines are missing there, the launcher starts the same background install.
 - Nothing else can be installed on the user's computer from the session unless a device
