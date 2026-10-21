@@ -3,14 +3,14 @@
 
     python3 docs/img/generate.py
 
-Every figure is drawn twice from one palette table so the <picture> element in the README
-can pick the variant that matches the reader's GitHub theme. Edit the text here, not in the
-SVGs.
+Every figure is drawn per language (en, ko) and per theme (light, dark) from one string table
+and one palette table; the READMEs pick the variant with <picture> + prefers-color-scheme.
+Edit the text here, not in the SVGs.
 """
 from pathlib import Path
 
 HERE = Path(__file__).parent
-FONT = "Inter, ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+FONT = "Inter, ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', Helvetica, Arial, sans-serif"
 MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
 
 PALETTES = {
@@ -25,6 +25,11 @@ PALETTES = {
 
 def esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def tw(s, size):
+    """Rough text width: CJK glyphs are ~1 em, Latin ~0.58 em."""
+    return sum(size * (1.0 if ord(ch) > 0x2E7F else 0.58) for ch in s)
 
 
 class Canvas:
@@ -74,14 +79,14 @@ class Canvas:
             best = max(zip(pts, pts[1:]), key=lambda s: abs(s[1][0] - s[0][0]) + abs(s[1][1] - s[0][1]))
             (x1, y1), (x2, y2) = best
             lx, ly = x1 + (x2 - x1) * lpos, y1 + (y2 - y1) * lpos
-            w = len(label) * lsize * 0.58 + 10
+            w = tw(label, lsize) + 10
             self.out.append(f'<rect x="{lx - w/2}" y="{ly + loff - lsize}" width="{w}" height="{lsize + 7}" rx="5" fill="{self.p["card"]}" opacity="0.95"/>')
             self.text(lx, ly + loff + 1, label, lsize, color, anchor="middle")
 
     def pill(self, x, y, s, color=None, fill=None, size=12):
         color = color or self.p["accent"]
         fill = fill or self.p["pill"]
-        w = len(s) * size * 0.6 + 22
+        w = tw(s, size) + 22
         self.out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{size + 12}" rx="{(size + 12) / 2}" fill="{fill}"/>')
         self.text(x + w / 2, y + size + 2, s, size, color, "600", "middle")
         return w
@@ -96,26 +101,115 @@ class Canvas:
         (HERE / name).write_text("\n".join(self.out), encoding="utf-8")
 
 
+# ------------------------------------------------------------------- string tables
+T = {
+    "en": dict(
+        hero_label="REA for Claude: REA's 207 reverse-engineering tools on Windows, macOS, Linux and claude.ai cloud, with engines that install themselves and reverse-engineering prompts routed to REA automatically",
+        tagline="Reverse Engineer Anything — from any Claude surface, with zero setup.",
+        pills=["Windows", "macOS", "Linux", "claude.ai cloud", "Claude Desktop"],
+        tiles=[("207", "REA tools, unmodified"), ("0", "manual setup steps"), ("26 s", "engine install · Windows 11"), ("3", "surfaces + Docker")],
+        hero_lines=["The engines (JDK 21 · Ghidra 12.1.4 · jadx) install themselves on first use.",
+                    "Reverse-engineering requests are routed to REA automatically — in English and Korean.",
+                    "Findings become HTML / Markdown / JSON reports, diffable across builds and machines."],
+        term=[("$ claude plugin install rea@rea-for-claude", "#e6e6ef"), ("✓ Installed rea 1.0.0", "#4ade80"), ("", ""),
+              ("$ claude", "#e6e6ef"), ("REA: installing JDK 21 + Ghidra + jadx for windows/x64", "#a78bfa"),
+              ("     in the background (~810 MB, usually 1–5 min)", "#a78bfa"), ("", ""),
+              ("> what does app.apk actually do?", "#e6e6ef"), ("[REA] reverse engineering → Android APK playbook (jadx)", "#fbbf24"),
+              ("● open_binary → analyze → classes · strings · manifest", "#9a9aab"), ("● /rea:report → app-2026-10-21.html", "#9a9aab")],
+        cmp_label="Upstream REA needs five manual steps on one machine; REA for Claude is one plugin install, after which the engines install themselves and the same tools run in Claude Code, Claude Desktop and claude.ai cloud, with reports and self-repair",
+        cmp_title="Two ways to run the same 207 tools",
+        cmp_sub="REA for Claude runs the unmodified rea-agents package — it changes how you get to it, not what it does.",
+        left_h="UPSTREAM REA", left_s="a local MCP server; you bring the engines",
+        right_h="REA FOR CLAUDE", right_s="plugin: engines included, every surface, auto-routed",
+        steps=[("Install a JDK 21 by hand", "set JAVA_HOME"), ("Download Ghidra, unzip, set GHIDRA_INSTALL_DIR", "570 MB · no checksum · no resume"),
+               ("Download jadx-headless-mcp, set REA_JADX_MCP_JAR", "one more path to get right"), ("npx rea-agents setup", "registers one client on this machine"),
+               ("Say “use REA” in every prompt", "or Claude reaches for strings / objdump")],
+        left_foot="One machine · one client · chat output only · Windows Ghidra “experimental”",
+        r_install=("claude plugin install rea@rea-for-claude", "that is the whole setup"), first="first session",
+        r_engines=("Engines install themselves in the background", "JDK 21 if needed · Ghidra 12.1.4 (SHA-256) · jadx · apktool / radare2 optional"),
+        surfaces=[("Claude Code", "any OS · auto-routed", "plugin hook"), ("Claude Desktop", "phone via linked session", ".mcpb"), ("claude.ai cloud", "no PC needed", "attach repo")],
+        r_report=("/rea:analyze → evidence JSON → /rea:report", "HTML (6 themes) · Markdown · JSON · bundles · --diff of two builds"),
+        r_doctor="/rea:doctor self-repair · resumable & offline installs · --upgrade",
+        verified="Verified: 207 live tools on win32 · full engine install 26 s on Windows 11 · CI on 3 OSes",
+        arch_label="Architecture: a SessionStart hook starts the installer when engines are missing, the installer writes ~/.rea-engines, the launcher reads it and spawns the unmodified REA MCP server, a UserPromptSubmit router adds context for reverse-engineering prompts, and make-report turns evidence JSON into reports",
+        arch_title="How it fits together",
+        arch_sub="Three small Node scripts around the unmodified REA server. Nothing patches REA; the plugin talks to it like any MCP client.",
+        lanes=["CLAUDE SESSION  ·  Code · Desktop · cloud", "PLUGIN RUNTIME", "~/.rea-engines  ·  one per machine"],
+        hook=("SessionStart hook", "ensure-engines.cjs · 0.2 s"), router=("UserPromptSubmit router", "rea-router.cjs · 40 ms · EN / KO"),
+        claude=("Claude", "skills · playbooks · /rea:* commands"), launcher=("launch-rea.cjs", "env › config › auto-discovery · JAVA_HOME · PATH"),
+        server=("REA MCP server", "rea-agents 6.7.0 · 207 tools · unmodified"), report=("make-report.mjs", "HTML / MD / JSON · themes · bundles · --diff"),
+        installer=("install-engines.cjs", "per-OS/CPU · SHA-256 · resume · offline · --upgrade"),
+        rows=[("jdk-21/", "only if no JDK 21+ is found on the machine"), ("ghidra_12.1.4_PUBLIC/", "native decompiler for this platform"),
+              ("jadx-headless-mcp-0.7.1-all.jar", "Android APK / DEX"), ("bin/apktool · radare2/", "optional · put first on PATH"),
+              ("archives/ · engines.json · install.log", "offline input · state · progress")],
+        a_starts="starts it when engines are missing", a_reads="reads", a_spawns="spawns", a_ctx="adds “use REA + playbook” context",
+        a_mcp="MCP tool calls", a_ev="evidence JSON", a_runs="runs Ghidra / jadx", a_report="report file",
+        legend="dashed = starts the installer / reads the engines directory · solid = runtime calls",
+    ),
+    "ko": dict(
+        hero_label="REA for Claude: Windows·macOS·Linux·claude.ai 클라우드에서 REA 툴 207개, 엔진 자동 설치, 리버스 엔지니어링 프롬프트 자동 라우팅",
+        tagline="Reverse Engineer Anything — Claude가 있는 모든 곳에서, 설정 없이.",
+        pills=["Windows", "macOS", "Linux", "claude.ai 클라우드", "Claude Desktop"],
+        tiles=[("207", "REA 툴, 원본 그대로"), ("0", "수동 설정 단계"), ("26초", "엔진 설치 · Windows 11"), ("3", "실행 환경 + Docker")],
+        hero_lines=["엔진(JDK 21 · Ghidra 12.1.4 · jadx)은 첫 사용 시 알아서 설치됩니다.",
+                    "리버스 엔지니어링 요청은 자동으로 REA로 라우팅됩니다 — 한국어·영어 모두.",
+                    "결과는 HTML / Markdown / JSON 리포트가 되고, 빌드·머신 간 diff가 됩니다."],
+        term=[("$ claude plugin install rea@rea-for-claude", "#e6e6ef"), ("✓ Installed rea 1.0.0", "#4ade80"), ("", ""),
+              ("$ claude", "#e6e6ef"), ("REA: installing JDK 21 + Ghidra + jadx for windows/x64", "#a78bfa"),
+              ("     in the background (~810 MB, usually 1–5 min)", "#a78bfa"), ("", ""),
+              ("> 이 app.apk 뭐 하는 앱이야?", "#e6e6ef"), ("[REA] 리버스 엔지니어링 → Android APK 플레이북 (jadx)", "#fbbf24"),
+              ("● open_binary → analyze → classes · strings · manifest", "#9a9aab"), ("● /rea:report → app-2026-10-21.html", "#9a9aab")],
+        cmp_label="업스트림 REA는 한 머신에서 수동 5단계가 필요하고, REA for Claude는 플러그인 설치 한 줄 뒤 엔진이 알아서 설치되어 같은 툴이 Claude Code·Claude Desktop·claude.ai 클라우드에서 리포트·자가 복구와 함께 동작합니다",
+        cmp_title="같은 207개 툴을 쓰는 두 가지 길",
+        cmp_sub="REA for Claude는 원본 rea-agents 패키지를 그대로 실행합니다 — 하는 일이 아니라 거기까지 가는 길을 바꿉니다.",
+        left_h="업스트림 REA", left_s="로컬 MCP 서버 · 엔진은 직접 준비",
+        right_h="REA FOR CLAUDE", right_s="플러그인 · 엔진 포함 · 모든 환경 · 자동 라우팅",
+        steps=[("JDK 21 직접 설치", "JAVA_HOME 설정"), ("Ghidra 다운로드·압축 해제, GHIDRA_INSTALL_DIR 설정", "570 MB · 체크섬 없음 · 이어받기 없음"),
+               ("jadx-headless-mcp 다운로드, REA_JADX_MCP_JAR 설정", "경로 하나 더 맞춰야 함"), ("npx rea-agents setup", "이 머신의 클라이언트 하나에 등록"),
+               ("프롬프트마다 “REA 써” 라고 말하기", "안 그러면 Claude가 strings / objdump로 대충 봄")],
+        left_foot="머신 하나 · 클라이언트 하나 · 채팅 출력만 · Windows Ghidra는 “experimental”",
+        r_install=("claude plugin install rea@rea-for-claude", "설정은 이게 전부"), first="첫 세션",
+        r_engines=("엔진이 백그라운드로 알아서 설치", "JDK 21(필요 시) · Ghidra 12.1.4 (SHA-256) · jadx · apktool / radare2 선택"),
+        surfaces=[("Claude Code", "모든 OS · 자동 라우팅", "플러그인 훅"), ("Claude Desktop", "연결 세션으로 폰에서도", ".mcpb"), ("claude.ai 클라우드", "PC 없이", "저장소 첨부")],
+        r_report=("/rea:analyze → evidence JSON → /rea:report", "HTML (테마 6종) · Markdown · JSON · 번들 · 두 빌드 --diff"),
+        r_doctor="/rea:doctor 자가 복구 · 이어받기·오프라인 설치 · --upgrade",
+        verified="검증: win32에서 라이브 툴 207개 · Windows 11 전체 엔진 설치 26초 · 3개 OS CI",
+        arch_label="아키텍처: SessionStart 훅이 엔진이 없으면 설치기를 띄우고, 설치기가 ~/.rea-engines를 쓰고, 런처가 그것을 읽어 원본 REA MCP 서버를 띄우며, UserPromptSubmit 라우터가 리버스 엔지니어링 프롬프트에 컨텍스트를 더하고, make-report가 evidence JSON을 리포트로 만듭니다",
+        arch_title="구성 요소가 맞물리는 방식",
+        arch_sub="원본 REA 서버를 감싸는 작은 Node 스크립트 셋. REA를 패치하지 않고, 여느 MCP 클라이언트처럼 대화합니다.",
+        lanes=["CLAUDE 세션  ·  Code · Desktop · 클라우드", "플러그인 런타임", "~/.rea-engines  ·  머신당 하나"],
+        hook=("SessionStart 훅", "ensure-engines.cjs · 0.2초"), router=("UserPromptSubmit 라우터", "rea-router.cjs · 40ms · 한/영"),
+        claude=("Claude", "스킬 · 플레이북 · /rea:* 커맨드"), launcher=("launch-rea.cjs", "env › 설정 › 자동 탐색 · JAVA_HOME · PATH"),
+        server=("REA MCP 서버", "rea-agents 6.7.0 · 툴 207개 · 원본 그대로"), report=("make-report.mjs", "HTML / MD / JSON · 테마 · 번들 · --diff"),
+        installer=("install-engines.cjs", "OS/CPU별 · SHA-256 · 이어받기 · 오프라인 · --upgrade"),
+        rows=[("jdk-21/", "머신에 JDK 21+가 없을 때만"), ("ghidra_12.1.4_PUBLIC/", "이 플랫폼용 네이티브 디컴파일러"),
+              ("jadx-headless-mcp-0.7.1-all.jar", "Android APK / DEX"), ("bin/apktool · radare2/", "선택 · PATH 맨 앞에"),
+              ("archives/ · engines.json · install.log", "오프라인 입력 · 상태 · 진행 로그")],
+        a_starts="엔진이 없으면 설치기 시작", a_reads="읽기", a_spawns="실행", a_ctx="“REA + 플레이북 사용” 컨텍스트 추가",
+        a_mcp="MCP 툴 호출", a_ev="evidence JSON", a_runs="Ghidra / jadx 실행", a_report="리포트 파일",
+        legend="점선 = 설치기 시작 / 엔진 디렉터리 읽기 · 실선 = 런타임 호출",
+    ),
+}
+
+
 # --------------------------------------------------------------------------- hero
-def hero(theme):
-    p = PALETTES[theme]
-    c = Canvas(1280, 420, p, "REA for Claude: REA's 207 reverse-engineering tools on Windows, macOS, Linux and claude.ai cloud, with engines that install themselves and reverse-engineering prompts routed to REA automatically")
+def hero(theme, lang):
+    p, t = PALETTES[theme], T[lang]
+    c = Canvas(1280, 420, p, t["hero_label"])
     # left copy
     c.text(56, 92, "REA for Claude", 40, p["fg"], "800")
-    c.text(56, 124, "Reverse Engineer Anything — from any Claude surface, with zero setup.", 16, p["muted"])
+    c.text(56, 124, t["tagline"], 16, p["muted"])
     x = 56
-    for s in ["Windows", "macOS", "Linux", "claude.ai cloud", "Claude Desktop"]:
+    for s in t["pills"]:
         x += c.pill(x, 146, s) + 8
     # stat tiles
-    tiles = [("207", "REA tools, unmodified"), ("0", "manual setup steps"), ("26 s", "engine install · Windows 11"), ("3", "surfaces + Docker")]
-    for i, (big, small) in enumerate(tiles):
+    for i, (big, small) in enumerate(t["tiles"]):
         tx = 56 + i * 150
         c.rect(tx, 206, 138, 76, p["card"], p["line"], r=12)
         c.text(tx + 16, 240, big, 24, p["accent"], "800")
         c.text(tx + 16, 262, small, 11, p["muted"])
-    c.text(56, 322, "The engines (JDK 21 · Ghidra 12.1.4 · jadx) install themselves on first use.", 13, p["muted"])
-    c.text(56, 342, "Reverse-engineering requests are routed to REA automatically — in English and Korean.", 13, p["muted"])
-    c.text(56, 362, "Findings become HTML / Markdown / JSON reports, diffable across builds and machines.", 13, p["muted"])
+    for i, line in enumerate(t["hero_lines"]):
+        c.text(56, 322 + i * 20, line, 13, p["muted"])
     # terminal mock
     tx, ty, tw, th = 700, 52, 524, 316
     c.out.append(f'<rect x="{tx}" y="{ty}" width="{tw}" height="{th}" rx="14" fill="{p["term"]}" stroke="{p["termline"]}"/>')
@@ -123,122 +217,101 @@ def hero(theme):
     for i, col in enumerate(["#ff5f57", "#febc2e", "#28c840"]):
         c.out.append(f'<circle cx="{tx+22+i*20}" cy="{ty+17}" r="6" fill="{col}"/>')
     c.text(tx + tw / 2, ty + 22, "claude", 12, "#c9c9d6", anchor="middle", mono=True)
-    lines = [
-        ("$ claude plugin install rea@rea-for-claude", "#e6e6ef"),
-        ("✓ Installed rea 1.0.0", "#4ade80"),
-        ("", ""),
-        ("$ claude", "#e6e6ef"),
-        ("REA: installing JDK 21 + Ghidra + jadx for windows/x64", "#a78bfa"),
-        ("     in the background (~810 MB, usually 1–5 min)", "#a78bfa"),
-        ("", ""),
-        ("> 이 app.apk 뭐 하는 앱이야?", "#e6e6ef"),
-        ("[REA] reverse engineering → Android APK playbook (jadx)", "#fbbf24"),
-        ("● open_binary → analyze → classes · strings · manifest", "#9a9aab"),
-        ("● /rea:report → app-2026-10-21.html", "#9a9aab"),
-    ]
-    for i, (s, col) in enumerate(lines):
+    for i, (s, col) in enumerate(t["term"]):
         if s:
             c.text(tx + 20, ty + 60 + i * 22, s, 12.5, col, mono=True)
-    c.save(f"hero-{theme}.svg")
+    c.save(f"hero-{lang}-{theme}.svg")
 
 
 # --------------------------------------------------------------------- comparison
-def comparison(theme):
-    p = PALETTES[theme]
-    c = Canvas(1280, 600, p, "Upstream REA needs five manual steps on one machine; REA for Claude is one plugin install, after which the engines install themselves and the same tools run in Claude Code, Claude Desktop and claude.ai cloud, with reports and self-repair")
-    c.text(56, 54, "Two ways to run the same 207 tools", 22, p["fg"], "800")
-    c.text(56, 78, "REA for Claude runs the unmodified rea-agents package — it changes how you get to it, not what it does.", 13, p["muted"])
+def comparison(theme, lang):
+    p, t = PALETTES[theme], T[lang]
+    c = Canvas(1280, 600, p, t["cmp_label"])
+    c.text(56, 54, t["cmp_title"], 22, p["fg"], "800")
+    c.text(56, 78, t["cmp_sub"], 13, p["muted"])
     # column headers
-    c.text(56, 126, "UPSTREAM REA", 12, p["muted"], "700")
-    c.text(56, 146, "a local MCP server; you bring the engines", 12, p["muted"])
-    c.text(676, 126, "REA FOR CLAUDE", 12, p["accent"], "700")
-    c.text(676, 146, "plugin: engines included, every surface, auto-routed", 12, p["muted"])
+    c.text(56, 126, t["left_h"], 12, p["muted"], "700")
+    c.text(56, 146, t["left_s"], 12, p["muted"])
+    c.text(676, 126, t["right_h"], 12, p["accent"], "700")
+    c.text(676, 146, t["right_s"], 12, p["muted"])
     c.out.append(f'<line x1="640" y1="112" x2="640" y2="560" stroke="{p["line"]}" stroke-dasharray="3 6"/>')
     # left steps
-    steps = [
-        ("Install a JDK 21 by hand", "set JAVA_HOME", p["warn"]),
-        ("Download Ghidra, unzip, set GHIDRA_INSTALL_DIR", "570 MB · no checksum · no resume", p["warn"]),
-        ("Download jadx-headless-mcp, set REA_JADX_MCP_JAR", "one more path to get right", p["warn"]),
-        ("npx rea-agents setup", "registers one client on this machine", p["muted"]),
-        ("Say “use REA” in every prompt", "or Claude reaches for strings / objdump", p["bad"]),
-    ]
-    for i, (t, s, col) in enumerate(steps):
+    colors = [p["warn"], p["warn"], p["warn"], p["muted"], p["bad"]]
+    for i, ((title, sub), col) in enumerate(zip(t["steps"], colors)):
         y = 166 + i * 70
         c.circle_num(76, y + 28, i + 1, col)
-        c.card(100, y, 500, 56, t, s, bar=col)
-        if i < len(steps) - 1:
+        c.card(100, y, 500, 56, title, sub, bar=col)
+        if i < len(t["steps"]) - 1:
             c.arrow([(76, y + 43), (76, y + 68)], color=col)
-    c.text(56, 540, "One machine · one client · chat output only · Windows Ghidra “experimental”", 12, p["muted"])
+    c.text(56, 540, t["left_foot"], 12, p["muted"])
     # right flow
-    c.card(676, 166, 548, 56, "claude plugin install rea@rea-for-claude", "that is the whole setup", bar=p["accent"])
-    c.arrow([(950, 222), (950, 244)], "first session", p["accent"], marker="arrA", lsize=10, loff=4)
-    c.card(676, 250, 548, 56, "Engines install themselves in the background", "JDK 21 if needed · Ghidra 12.1.4 (SHA-256) · jadx · apktool / radare2 optional", bar=p["good"])
+    c.card(676, 166, 548, 56, t["r_install"][0], t["r_install"][1], bar=p["accent"])
+    c.arrow([(950, 222), (950, 244)], t["first"], p["accent"], marker="arrA", lsize=10, loff=4)
+    c.card(676, 250, 548, 56, t["r_engines"][0], t["r_engines"][1], bar=p["good"])
     # fan-out
     xs = [676, 862, 1048]
-    labels = [("Claude Code", "any OS · auto-routed", "plugin hook"), ("Claude Desktop", "phone via linked session", ".mcpb"), ("claude.ai cloud", "no PC needed", "attach repo")]
+    labels = t["surfaces"]
     # bus line, then one labelled drop per surface
     c.out.append(f'<path d="M950,306 L950,320 M764,320 L1136,320" fill="none" stroke="{p["good"]}" stroke-width="1.6"/>')
-    for x, (t, s_, how) in zip(xs, labels):
+    for x, (title, s_, how) in zip(xs, labels):
         c.arrow([(x + 88, 320), (x + 88, 352)], how, p["good"], marker="arrG", lsize=10, loff=4, lpos=0.5)
-        c.card(x, 356, 176, 56, t, s_, tsize=13)
+        c.card(x, 356, 176, 56, title, s_, tsize=13)
     for x in xs:
         c.arrow([(x + 88, 412), (x + 88, 432)], color=p["muted"])
-    c.card(676, 436, 548, 56, "/rea:analyze → evidence JSON → /rea:report", "HTML (6 themes) · Markdown · JSON · bundles · --diff of two builds")
+    c.card(676, 436, 548, 56, t["r_report"][0], t["r_report"][1])
     c.arrow([(950, 492), (950, 510)], color=p["muted"])
-    c.card(676, 514, 548, 44, "/rea:doctor self-repair · resumable & offline installs · --upgrade", tsize=13)
-    c.text(676, 582, "Verified: 207 live tools on win32 · full engine install 26 s on Windows 11 · CI on 3 OSes", 12, p["good"])
-    c.save(f"upstream-vs-plugin-{theme}.svg")
+    c.card(676, 514, 548, 44, t["r_doctor"], tsize=13)
+    c.text(676, 582, t["verified"], 12, p["good"])
+    c.save(f"upstream-vs-plugin-{lang}-{theme}.svg")
 
 
 # ------------------------------------------------------------------- architecture
-def architecture(theme):
-    p = PALETTES[theme]
-    c = Canvas(1280, 540, p, "Architecture: a SessionStart hook starts the installer when engines are missing, the installer writes ~/.rea-engines, the launcher reads it and spawns the unmodified REA MCP server, a UserPromptSubmit router adds context for reverse-engineering prompts, and make-report turns evidence JSON into reports")
-    c.text(56, 54, "How it fits together", 22, p["fg"], "800")
-    c.text(56, 78, "Three small Node scripts around the unmodified REA server. Nothing patches REA; the plugin talks to it like any MCP client.", 13, p["muted"])
-    for x, w, title in [(56, 320, "CLAUDE SESSION  ·  Code · Desktop · cloud"), (436, 360, "PLUGIN RUNTIME"), (856, 368, "~/.rea-engines  ·  one per machine")]:
+def architecture(theme, lang):
+    p, t = PALETTES[theme], T[lang]
+    c = Canvas(1280, 540, p, t["arch_label"])
+    c.text(56, 54, t["arch_title"], 22, p["fg"], "800")
+    c.text(56, 78, t["arch_sub"], 13, p["muted"])
+    for (x, w), title in zip([(56, 320), (436, 360), (856, 368)], t["lanes"]):
         c.rect(x, 104, w, 396, "none", p["line"], r=14, dash="4 6")
         c.text(x + 16, 128, title, 11, p["muted"], "700")
-    c.card(72, 150, 288, 58, "SessionStart hook", "ensure-engines.cjs · 0.2 s", bar=p["good"])
-    c.card(72, 230, 288, 58, "UserPromptSubmit router", "rea-router.cjs · 40 ms · EN / KO", bar=p["good"])
-    c.card(72, 310, 288, 58, "Claude", "skills · playbooks · /rea:* commands")
-    c.card(452, 150, 328, 58, "launch-rea.cjs", "env › config › auto-discovery · JAVA_HOME · PATH", bar=p["accent"])
-    c.card(452, 250, 328, 70, "REA MCP server", "rea-agents 6.7.0 · 207 tools · unmodified")
-    c.card(452, 400, 328, 58, "make-report.mjs", "HTML / MD / JSON · themes · bundles · --diff")
-    c.card(872, 150, 336, 58, "install-engines.cjs", "per-OS/CPU · SHA-256 · resume · offline · --upgrade", bar=p["good"])
-    rows = [("jdk-21/", "only if no JDK 21+ is found on the machine"), ("ghidra_12.1.4_PUBLIC/", "native decompiler for this platform"),
-            ("jadx-headless-mcp-0.7.1-all.jar", "Android APK / DEX"), ("bin/apktool · radare2/", "optional · put first on PATH"),
-            ("archives/ · engines.json · install.log", "offline input · state · progress")]
-    for i, (a, b) in enumerate(rows):
+    c.card(72, 150, 288, 58, *t["hook"], bar=p["good"])
+    c.card(72, 230, 288, 58, *t["router"], bar=p["good"])
+    c.card(72, 310, 288, 58, *t["claude"])
+    c.card(452, 150, 328, 58, *t["launcher"], bar=p["accent"])
+    c.card(452, 250, 328, 70, *t["server"])
+    c.card(452, 400, 328, 58, *t["report"])
+    c.card(872, 150, 336, 58, *t["installer"], bar=p["good"])
+    for i, (a, b) in enumerate(t["rows"]):
         y = 230 + i * 52
         c.rect(872, y, 336, 44, p["card2"], p["line"], r=9)
         c.text(886, y + 19, a, 12, p["fg"], "600", mono=True)
         c.text(886, y + 35, b, 11, p["muted"])
     # hook -> installer (over the top)
-    c.arrow([(360, 170), (404, 170), (404, 96), (1180, 96), (1180, 150)], "starts it when engines are missing", p["good"], dashed=True, marker="arrG", lsize=10, loff=-5)
+    c.arrow([(360, 170), (404, 170), (404, 96), (1180, 96), (1180, 150)], t["a_starts"], p["good"], dashed=True, marker="arrG", lsize=10, loff=-5)
     # installer -> engines dir
     c.arrow([(1040, 208), (1040, 230)], color=p["good"], marker="arrG")
     # launcher reads engines dir
-    c.arrow([(872, 179), (780, 179)], "reads", p["accent"], dashed=True, marker="arrA", lsize=10, loff=-5, lpos=0.5)
+    c.arrow([(872, 179), (780, 179)], t["a_reads"], p["accent"], dashed=True, marker="arrA", lsize=10, loff=-5, lpos=0.5)
     # launcher spawns REA
-    c.arrow([(616, 208), (616, 250)], "spawns", p["accent"], marker="arrA", lsize=10, loff=4)
+    c.arrow([(616, 208), (616, 250)], t["a_spawns"], p["accent"], marker="arrA", lsize=10, loff=4)
     # router -> claude (context)
-    c.arrow([(216, 288), (216, 310)], "adds “use REA + playbook” context", p["good"], marker="arrG", lsize=10, loff=5)
+    c.arrow([(216, 288), (216, 310)], t["a_ctx"], p["good"], marker="arrG", lsize=10, loff=5)
     # claude -> REA (MCP calls)
-    c.arrow([(360, 339), (420, 339), (420, 285), (452, 285)], "MCP tool calls", p["muted"], lsize=10, loff=-5)
+    c.arrow([(360, 339), (420, 339), (420, 285), (452, 285)], t["a_mcp"], p["muted"], lsize=10, loff=-5)
     # REA -> evidence -> report
-    c.arrow([(616, 320), (616, 400)], "evidence JSON", p["muted"], lsize=10, loff=-5)
+    c.arrow([(616, 320), (616, 400)], t["a_ev"], p["muted"], lsize=10, loff=-5)
     # REA uses engines
-    c.arrow([(780, 285), (872, 285)], "runs Ghidra / jadx", p["muted"], lsize=10, loff=-5)
+    c.arrow([(780, 285), (872, 285)], t["a_runs"], p["muted"], lsize=10, loff=-5)
     # report -> claude
-    c.arrow([(452, 429), (420, 429), (420, 360), (360, 360)], "report file", p["muted"], lsize=10, loff=-5)
-    c.text(640, 524, "dashed = starts the installer / reads the engines directory · solid = runtime calls", 11, p["muted"], anchor="middle")
-    c.save(f"architecture-{theme}.svg")
+    c.arrow([(452, 429), (420, 429), (420, 360), (360, 360)], t["a_report"], p["muted"], lsize=10, loff=-5)
+    c.text(640, 524, t["legend"], 11, p["muted"], anchor="middle")
+    c.save(f"architecture-{lang}-{theme}.svg")
 
 
 if __name__ == "__main__":
-    for theme in PALETTES:
-        hero(theme)
-        comparison(theme)
-        architecture(theme)
+    for lang in T:
+        for theme in PALETTES:
+            hero(theme, lang)
+            comparison(theme, lang)
+            architecture(theme, lang)
     print("ok")
