@@ -312,7 +312,7 @@ section('1.0: validation/repair, offline archives, router tuning, report themes/
   {
     const start = fs.existsSync('commands/start.md') ? fs.readFileSync('commands/start.md', 'utf8') : '';
     const readmes = ['README.md', 'README.ko.md', 'README.ja.md', 'README.zh-CN.md'].map((f) => fs.readFileSync(f, 'utf8'));
-    if (/^---\ndescription: /.test(start) && start.includes(enginesLib.LINKED_TOOL_PREFIX) && readmes.every((t) => t.includes('/rea:start') && t.includes(enginesLib.LINKED_TOOL_PREFIX))) ok('/rea:start present; every README has the per-environment guide');
+    if (/^---\r?\ndescription: /.test(start) && start.includes(enginesLib.LINKED_TOOL_PREFIX) && readmes.every((t) => t.includes('/rea:start') && t.includes(enginesLib.LINKED_TOOL_PREFIX))) ok('/rea:start present; every README has the per-environment guide');
     else bad('commands/start.md missing or a README lacks the /rea:start environment guide');
   }
   fs.rmSync(edir, { recursive: true, force: true });
