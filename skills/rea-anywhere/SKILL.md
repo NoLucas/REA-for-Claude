@@ -46,6 +46,14 @@ choose pieces.
 
 ## Cloud sessions (claude.ai / claude.ai/code, `CLAUDE_CODE_REMOTE` is set)
 
+- **The plugin's MCP server is not loaded here.** Cloud sessions set
+  `CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`: skills, hooks and commands load, plugin-declared MCP
+  servers do not. `mcp__rea__*` tools exist only when the project registers the server itself —
+  a session started on the REA-for-Claude repository has that (`.mcp.json`); any other
+  repository needs `/rea:setup-mcp` once (writes `.mcp.json`, `.claude/rea-mcp.cjs`,
+  `.claude/settings.json`), committed, then a new session. The SessionStart hook says so in
+  its `REA: the REA MCP server is NOT loaded` line. Until then, tell the user REA is
+  unavailable in this session; do not analyse by hand and present it as REA output.
 - Same flow as above; the repo's `.claude/settings.json` hook triggers it, so engines are
   usually ready 1–3 minutes after the session starts. REA itself is available immediately
   for engine-free providers (managed .NET static analysis, artifact graphs,

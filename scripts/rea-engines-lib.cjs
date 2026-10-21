@@ -395,8 +395,44 @@ function summarize(found, jdk) {
   return parts.join(', ');
 }
 
+// ---------------------------------------------------------------------------------------------
+// MCP registration: is the `rea` server going to exist in this session at all?
+//
+// claude.ai cloud sessions start Claude Code with CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1: plugin
+// skills, hooks and commands load, but every plugin-declared MCP server is skipped (an
+// _EXCEPT list names the few that are not). There the only way to get mcp__rea__* tools is a
+// project-level .mcp.json (plus enableAllProjectMcpServers) or a user-level entry in
+// ~/.claude.json. Local Claude Code and Claude Desktop load the plugin's server normally.
+// ---------------------------------------------------------------------------------------------
+function hasReaServer(file, projectDir) {
+  try {
+    const j = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (j && j.mcpServers && j.mcpServers.rea) return true;
+    // ~/.claude.json keeps per-project (local-scope) servers under projects[<dir>].mcpServers
+    if (projectDir && j && j.projects) {
+      for (const [dir, cfg] of Object.entries(j.projects)) {
+        if (path.resolve(dir) === path.resolve(projectDir) && cfg && cfg.mcpServers && cfg.mcpServers.rea) return true;
+      }
+    }
+  } catch { /* missing or invalid */ }
+  return false;
+}
+
+function mcpRegistration(cwd) {
+  const projectDir = clean(process.env.CLAUDE_PROJECT_DIR) || cwd || process.cwd();
+  const skip = clean(process.env.CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS);
+  const except = (process.env.CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS_EXCEPT || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const pluginMcpSkipped = Boolean(skip) && skip !== '0' && skip !== 'false' && !except.includes('rea');
+  const project = hasReaServer(path.join(projectDir, '.mcp.json'));
+  const user = hasReaServer(path.join(os.homedir(), '.claude.json'), projectDir);
+  const cloud = process.env.CLAUDE_CODE_REMOTE === 'true' || Boolean(clean(process.env.CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE));
+  const source = project ? 'project .mcp.json' : user ? '~/.claude.json' : pluginMcpSkipped ? null : 'plugin manifest';
+  return { projectDir, pluginMcpSkipped, project, user, cloud, loaded: Boolean(source), source };
+}
+
 module.exports = {
   VERSIONS,
+  mcpRegistration,
   GHIDRA_DIR_NAME,
   JDK_DIR_NAME,
   RADARE2_DIR_NAME,

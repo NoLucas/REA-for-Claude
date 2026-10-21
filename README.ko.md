@@ -54,6 +54,8 @@ claude plugin install rea@rea-for-claude
 
 **claude.ai 클라우드 세션(웹 · 폰 · claude.ai/code)** — 이 저장소를 포크하거나 푸시하고 그 위에서 세션을 시작(또는 채팅에 저장소 첨부)한 뒤 *"`./samples/app.bin` 분석해서 뭐 하는 건지 알려줘"*라고 하세요. `.mcp.json`이 REA를 즉시 띄우고, 같은 훅이 컨테이너에 엔진을 설치합니다(약 2분). 기다리기 싫으면 환경 설정에 `Setup script = bash scripts/install-engines.sh`.
 
+**다른 저장소**에서 클라우드 세션으로 REA를 쓰려면 그 저장소에서 `/rea:setup-mcp`를 한 번 실행하고, 생성된 세 파일(`.mcp.json`, `.claude/rea-mcp.cjs`, `.claude/settings.json`)을 커밋하세요. 다음 세션부터 `mcp__rea__*` 툴이 생깁니다. claude.ai 클라우드 세션은 스킬·훅·명령은 로드하지만 플러그인이 선언한 MCP 서버는 로드하지 않고 프로젝트 수준 서버만 인식하기 때문입니다. 로컬 Claude Code와 Claude Desktop에는 필요 없습니다.
+
 **Claude Desktop** — PC에서 원클릭 확장을 빌드해 설정 › 확장 › 고급 › Install Extension… 으로 설치:
 
 ```bash
@@ -147,6 +149,7 @@ JDK를 내려받는 이유: Ghidra는 `javac`가 있는 64비트 JDK 21+가 필�
 | `/rea:install-engines` | 엔진 설치·복구·업그레이드(`--dry-run`, `--only`, `--upgrade`, `--wsl`) |
 | `/rea:capabilities` | 이 호스트에서 지금 가능한 REA 기능을 대상 유형별로 |
 | `/rea:why [프롬프트]` | 프롬프트가 REA로 라우팅된(안 된) 이유와 조정 방법 |
+| `/rea:setup-mcp` | 이 저장소의 `.mcp.json`에 REA 서버 등록 — 플러그인 MCP 서버를 건너뛰는 claude.ai 클라우드 세션용 |
 
 | 스킬 | 용도 |
 |---|---|
@@ -224,6 +227,7 @@ PC에 이미 있는 JDK(IntelliJ `~/.jdks`, Temurin, Homebrew, apt)는 찾아서
 | `.ps1 cannot be loaded … execution policy` | 기본 정책이 스크립트 차단 | `powershell -ExecutionPolicy Bypass -File …` |
 | Defender가 Ghidra zip을 잡거나 압축 해제가 느림 | 작은 파일이 많은 큰 아카이브 | `%USERPROFILE%\.rea-engines` 예외 추가; SHA-256이 무결성 보장 |
 | 큰 바이너리에서 타임아웃 | 헤드리스 분석이 느림 | `env`의 `REA_GHIDRA_STARTUP_TIMEOUT_MS`를 올리고, 한 번 분석한 뒤 함수 단위 호출 |
+| claude.ai 클라우드 세션에 `mcp__rea__*` 툴이 없고 Claude가 grep으로 "분석"함 | 클라우드 세션은 플러그인이 선언한 MCP 서버를 건너뜀(`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | 이 저장소에서 세션을 열거나, 내 저장소에서 `/rea:setup-mcp` 실행 → 커밋 → 새 세션. SessionStart 한 줄과 `/rea:doctor`가 서버 미로드 상태를 알려줌 |
 | 다운로드 차단 | 프록시 / 허용 목록 | `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `api.adoptium.net` 허용 — 또는 파일을 `~/.rea-engines/archives/`에 넣기 |
 
 `node scripts/selftest.mjs`로 어느 OS에서든 플러그인 자체를 점검할 수 있습니다.
@@ -257,6 +261,8 @@ scripts/
   launch-rea.cjs       범용 런처(`launch-rea.cjs doctor`로 서버와 같은 env에서 doctor 실행)
   ensure-engines.cjs   SessionStart 훅: 확인 → 백그라운드 설치 → 상태 한 줄(--status로 표)
   rea-router.cjs       UserPromptSubmit 훅: RE 프롬프트 → "REA + 이 플레이북 사용"(--why)
+  setup-mcp.cjs        /rea:setup-mcp — 플러그인 MCP 서버를 건너뛰는 호스트용 프로젝트 .mcp.json
+  rea-mcp-bootstrap.cjs  프로젝트에 .claude/rea-mcp.cjs로 복사됨; 설치된 플러그인의 런처를 찾아 실행
   install-engines.cjs  Windows / macOS / Linux 설치기(JDK 21, Ghidra, jadx, apktool, radare2, WSL)
   rea-engines-lib.cjs  공용: 버전 고정, OS 감지, 설정, 엔진 / JDK 탐색, 검증
   install-engines.sh   Linux / Docker 설치기(Ghidra, jadx, apt)

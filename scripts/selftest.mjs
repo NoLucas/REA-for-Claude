@@ -152,6 +152,49 @@ section('engine installer + SessionStart hook (offline, cross-platform)');
   fs.rmSync(edir, { recursive: true, force: true });
 }
 
+section('MCP registration: cloud hosts skip plugin MCP servers; setup-mcp registers at project level');
+{
+  const pdir = path.join(os.tmpdir(), `rea-mcp-selftest-${process.pid}`);
+  fs.rmSync(pdir, { recursive: true, force: true });
+  fs.mkdirSync(pdir, { recursive: true });
+  const skipEnv = { ...process.env, CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS: '1', CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS_EXCEPT: 'documents', CLAUDE_PROJECT_DIR: pdir, REA_PLUGIN_CONFIG: path.join(os.tmpdir(), 'definitely-missing-rea-config.json'), REA_PLUGIN_AUTO_ENGINES: '0' };
+  const plainEnv = { ...skipEnv }; delete plainEnv.CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS;
+  // hook: plain host -> no MCP warning; skipping host + bare project -> warning naming /rea:setup-mcp
+  const h0 = spawnSync(process.execPath, [path.resolve('scripts/ensure-engines.cjs'), '--status'], { encoding: 'utf8', env: plainEnv, cwd: pdir, timeout: 30000 });
+  if (h0.status === 0 && /mcp: rea server registered via plugin manifest/.test(h0.stdout) && !/NOT loaded/.test(h0.stdout)) ok('ensure-engines.cjs: plugin manifest counts as registered on a normal host');
+  else bad(`ensure-engines.cjs (plain host): ${h0.stdout} ${h0.stderr}`);
+  const h1 = spawnSync(process.execPath, [path.resolve('scripts/ensure-engines.cjs')], { encoding: 'utf8', env: skipEnv, cwd: pdir, timeout: 30000 });
+  if (h1.status === 0 && /REA MCP server is NOT loaded/.test(h1.stdout) && /\/rea:setup-mcp/.test(h1.stdout)) ok('ensure-engines.cjs warns when the host skips plugin MCP servers and nothing registers rea');
+  else bad(`ensure-engines.cjs (skip host): ${h1.stdout} ${h1.stderr}`);
+  // the _EXCEPT allow-list naming rea means the plugin server does load
+  const h2 = spawnSync(process.execPath, [path.resolve('scripts/ensure-engines.cjs')], { encoding: 'utf8', env: { ...skipEnv, CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS_EXCEPT: 'documents,rea' }, cwd: pdir, timeout: 30000 });
+  if (h2.status === 0 && !/NOT loaded/.test(h2.stdout)) ok('ensure-engines.cjs honours CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS_EXCEPT');
+  else bad(`ensure-engines.cjs (except): ${h2.stdout} ${h2.stderr}`);
+  // setup-mcp: --check 1 before, writes three files, --check 0 after, merges existing content, --remove undoes
+  const c0 = spawnSync(process.execPath, ['scripts/setup-mcp.cjs', '--check', '--dir', pdir], { encoding: 'utf8', env: skipEnv, timeout: 30000 });
+  fs.writeFileSync(path.join(pdir, '.mcp.json'), JSON.stringify({ mcpServers: { other: { command: 'echo' } } }));
+  const w = spawnSync(process.execPath, ['scripts/setup-mcp.cjs', '--dir', pdir], { encoding: 'utf8', env: skipEnv, timeout: 30000 });
+  const mcp = JSON.parse(fs.readFileSync(path.join(pdir, '.mcp.json'), 'utf8'));
+  const settings = JSON.parse(fs.readFileSync(path.join(pdir, '.claude', 'settings.json'), 'utf8'));
+  const boot = fs.readFileSync(path.join(pdir, '.claude', 'rea-mcp.cjs'), 'utf8') === fs.readFileSync('scripts/rea-mcp-bootstrap.cjs', 'utf8');
+  const c1 = spawnSync(process.execPath, ['scripts/setup-mcp.cjs', '--check', '--dir', pdir], { encoding: 'utf8', env: skipEnv, timeout: 30000 });
+  if (c0.status === 1 && w.status === 0 && mcp.mcpServers.rea?.args?.[0] === '.claude/rea-mcp.cjs' && mcp.mcpServers.other && settings.enableAllProjectMcpServers === true && boot && c1.status === 0 && /project \.mcp\.json/.test(c1.stdout)) ok('setup-mcp.cjs writes .mcp.json (merged), .claude/rea-mcp.cjs and settings.json; --check flips 1 → 0');
+  else bad(`setup-mcp.cjs: check0=${c0.status} write=${w.status} check1=${c1.status}\n${w.stdout}${w.stderr}${c1.stdout}`);
+  // hook now sees the project registration
+  const h3 = spawnSync(process.execPath, [path.resolve('scripts/ensure-engines.cjs'), '--status'], { encoding: 'utf8', env: skipEnv, cwd: pdir, timeout: 30000 });
+  if (h3.status === 0 && /registered via project \.mcp\.json/.test(h3.stdout) && !/NOT loaded/.test(h3.stdout)) ok('ensure-engines.cjs reports the project-level registration');
+  else bad(`ensure-engines.cjs (after setup): ${h3.stdout} ${h3.stderr}`);
+  // bootstrap resolves this checkout's launcher when run from the repo, and the plugin's own copy from elsewhere
+  const where = spawnSync(process.execPath, [path.join(pdir, '.claude', 'rea-mcp.cjs'), '--where'], { encoding: 'utf8', env: { ...skipEnv, REA_PLUGIN_LAUNCHER: path.resolve('scripts/launch-rea.cjs') }, cwd: pdir, timeout: 30000 });
+  if (where.status === 0 && where.stdout.includes('launch-rea.cjs') && /REA_PLUGIN_LAUNCHER/.test(where.stdout)) ok('rea-mcp-bootstrap.cjs resolves the launcher (REA_PLUGIN_LAUNCHER first)');
+  else bad(`rea-mcp-bootstrap.cjs --where: ${where.stdout} ${where.stderr}`);
+  const rm = spawnSync(process.execPath, ['scripts/setup-mcp.cjs', '--remove', '--dir', pdir], { encoding: 'utf8', env: skipEnv, timeout: 30000 });
+  const after = JSON.parse(fs.readFileSync(path.join(pdir, '.mcp.json'), 'utf8'));
+  if (rm.status === 0 && !after.mcpServers?.rea && after.mcpServers?.other && !fs.existsSync(path.join(pdir, '.claude', 'rea-mcp.cjs'))) ok('setup-mcp.cjs --remove keeps other servers');
+  else bad(`setup-mcp.cjs --remove: ${rm.stdout} ${rm.stderr}`);
+  fs.rmSync(pdir, { recursive: true, force: true });
+}
+
 section('rea-router: reverse-engineering prompts route to REA, others are untouched');
 {
   const cases = [
@@ -250,7 +293,7 @@ section('1.0: validation/repair, offline archives, router tuning, report themes/
   const rel = fs.existsSync('.github/workflows/release.yml') ? fs.readFileSync('.github/workflows/release.yml', 'utf8') : '';
   if (/windows-latest/.test(rel) && /macos-latest/.test(rel) && /ubuntu-latest/.test(rel) && /mcpb sign/.test(rel) && /--self-signed/.test(rel) && /mcpb verify/.test(rel)) ok('release.yml builds, signs and verifies .mcpb on 3 OSes');
   else bad('release.yml missing or incomplete');
-  if (fs.existsSync('docs/STABILITY.md') && fs.existsSync('commands/why.md')) ok('docs/STABILITY.md and /rea:why present'); else bad('STABILITY.md or why.md missing');
+  if (fs.existsSync('docs/STABILITY.md') && fs.existsSync('commands/why.md') && fs.existsSync('commands/setup-mcp.md')) ok('docs/STABILITY.md, /rea:why and /rea:setup-mcp present'); else bad('STABILITY.md, why.md or setup-mcp.md missing');
   fs.rmSync(edir, { recursive: true, force: true });
 }
 
