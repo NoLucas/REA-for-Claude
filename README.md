@@ -30,8 +30,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.svg">
-    <img alt="REA for Claude: 207 REA tools on Windows, macOS, Linux and claude.ai cloud; engines install themselves; reverse-engineering prompts are routed to REA automatically" src="docs/img/hero-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-en-dark.svg">
+    <img alt="REA for Claude: 207 REA tools on Windows, macOS, Linux and claude.ai cloud; engines install themselves; reverse-engineering prompts are routed to REA automatically" src="docs/img/hero-en-light.svg" width="100%">
   </picture>
 </p>
 
@@ -97,8 +97,8 @@ Read the security notes in [remote/README.md](remote/README.md) first.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/upstream-vs-plugin-dark.svg">
-    <img alt="Upstream REA: five manual steps on one machine. REA for Claude: one plugin install, engines install themselves, works in Claude Code, Claude Desktop and claude.ai cloud, with reports and self-repair." src="docs/img/upstream-vs-plugin-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/upstream-vs-plugin-en-dark.svg">
+    <img alt="Upstream REA: five manual steps on one machine. REA for Claude: one plugin install, engines install themselves, works in Claude Code, Claude Desktop and claude.ai cloud, with reports and self-repair." src="docs/img/upstream-vs-plugin-en-light.svg" width="100%">
   </picture>
 </p>
 
@@ -123,8 +123,8 @@ If you use Claude Code on one Linux box and already have Ghidra configured, upst
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-dark.svg">
-    <img alt="Architecture: SessionStart and UserPromptSubmit hooks and the launcher around the unmodified REA MCP server, reading a self-installing ~/.rea-engines directory" src="docs/img/architecture-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-en-dark.svg">
+    <img alt="Architecture: SessionStart and UserPromptSubmit hooks and the launcher around the unmodified REA MCP server, reading a self-installing ~/.rea-engines directory" src="docs/img/architecture-en-light.svg" width="100%">
   </picture>
 </p>
 

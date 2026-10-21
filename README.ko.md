@@ -30,8 +30,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.svg">
-    <img alt="REA for Claude: Windows·macOS·Linux·claude.ai 클라우드에서 REA 툴 207개, 엔진 자동 설치, 리버스 엔지니어링 프롬프트 자동 라우팅" src="docs/img/hero-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-ko-dark.svg">
+    <img alt="REA for Claude: Windows·macOS·Linux·claude.ai 클라우드에서 REA 툴 207개, 엔진 자동 설치, 리버스 엔지니어링 프롬프트 자동 라우팅" src="docs/img/hero-ko-light.svg" width="100%">
   </picture>
 </p>
 
@@ -97,8 +97,8 @@ docker compose -f docker-compose.oauth.yml up --build
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/upstream-vs-plugin-dark.svg">
-    <img alt="업스트림 REA: 한 머신에서 수동 5단계. REA for Claude: 플러그인 설치 한 줄, 엔진 자동 설치, Claude Code·Claude Desktop·claude.ai 클라우드에서 동작, 리포트와 자가 복구." src="docs/img/upstream-vs-plugin-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/upstream-vs-plugin-ko-dark.svg">
+    <img alt="업스트림 REA: 한 머신에서 수동 5단계. REA for Claude: 플러그인 설치 한 줄, 엔진 자동 설치, Claude Code·Claude Desktop·claude.ai 클라우드에서 동작, 리포트와 자가 복구." src="docs/img/upstream-vs-plugin-ko-light.svg" width="100%">
   </picture>
 </p>
 
@@ -123,8 +123,8 @@ Linux 한 대에서 Claude Code만 쓰고 Ghidra가 이미 잡혀 있다면 업�
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-dark.svg">
-    <img alt="아키텍처: SessionStart·UserPromptSubmit 훅과 런처가 원본 REA MCP 서버를 감싸고, 스스로 설치되는 ~/.rea-engines 디렉터리를 읽는 구조" src="docs/img/architecture-light.svg" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-ko-dark.svg">
+    <img alt="아키텍처: SessionStart·UserPromptSubmit 훅과 런처가 원본 REA MCP 서버를 감싸고, 스스로 설치되는 ~/.rea-engines 디렉터리를 읽는 구조" src="docs/img/architecture-ko-light.svg" width="100%">
   </picture>
 </p>
 
