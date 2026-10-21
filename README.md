@@ -10,7 +10,10 @@
 </p>
 
 <p align="center">
-  <img alt="Upstream REA: five manual steps on one machine. REA for Claude: one plugin install, engines install themselves, works in Claude Code, Claude Desktop and claude.ai cloud, with reports and self-repair." src="docs/img/upstream-vs-plugin.svg" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.svg">
+    <img alt="REA for Claude: 207 REA tools on Windows, macOS, Linux and claude.ai cloud; engines install themselves; reverse-engineering prompts are routed to REA automatically" src="docs/img/hero-light.svg" width="100%">
+  </picture>
 </p>
 
 <p align="center">
@@ -51,6 +54,13 @@ That makes it a Claude Code–terminal tool by default. **REA for Claude** remov
 > Read upstream REA's [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md) before use.
 
 ## 🆚 How this differs from upstream REA
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/upstream-vs-plugin-dark.svg">
+    <img alt="Upstream REA: five manual steps on one machine. REA for Claude: one plugin install, engines install themselves, works in Claude Code, Claude Desktop and claude.ai cloud, with reports and self-repair." src="docs/img/upstream-vs-plugin-light.svg" width="100%">
+  </picture>
+</p>
 
 [REA](https://github.com/morluto/rea) (by morluto, MIT) is the engine: 207 MCP tools that drive Ghidra, jadx, IDA, Hopper, Kuna and
 a dozen engine-free analyzers. **REA for Claude does not fork or modify REA** — it runs the unmodified `rea-agents` package and adds
@@ -197,7 +207,10 @@ Add `https://<tunnel>/<REA_PATH_SECRET>/mcp` under claude.ai → Settings → Co
 ## 🔍 How it works
 
 <p align="center">
-  <img alt="Architecture: SessionStart and UserPromptSubmit hooks and the launcher around the unmodified REA MCP server, reading a self-installing ~/.rea-engines directory" src="docs/img/architecture.svg" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-dark.svg">
+    <img alt="Architecture: SessionStart and UserPromptSubmit hooks and the launcher around the unmodified REA MCP server, reading a self-installing ~/.rea-engines directory" src="docs/img/architecture-light.svg" width="100%">
+  </picture>
 </p>
 
 ```mermaid

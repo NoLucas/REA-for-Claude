@@ -10,7 +10,10 @@
 </p>
 
 <p align="center">
-  <img alt="업스트림 REA: 한 머신에서 수동 5단계. REA for Claude: 플러그인 설치 한 줄, 엔진 자동 설치, Claude Code·Claude Desktop·claude.ai 클라우드에서 동작, 리포트와 자가 복구." src="docs/img/upstream-vs-plugin.svg" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/hero-dark.svg">
+    <img alt="REA for Claude: Windows·macOS·Linux·claude.ai 클라우드에서 REA 툴 207개, 엔진 자동 설치, 리버스 엔지니어링 프롬프트 자동 라우팅" src="docs/img/hero-light.svg" width="100%">
+  </picture>
 </p>
 
 <p align="center">
@@ -52,6 +55,13 @@
 > 사용 전 REA 원본의 [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md)를 읽어 주세요.
 
 ## 🆚 업스트림 REA와 다른 점
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/upstream-vs-plugin-dark.svg">
+    <img alt="업스트림 REA: 한 머신에서 수동 5단계. REA for Claude: 플러그인 설치 한 줄, 엔진 자동 설치, Claude Code·Claude Desktop·claude.ai 클라우드에서 동작, 리포트와 자가 복구." src="docs/img/upstream-vs-plugin-light.svg" width="100%">
+  </picture>
+</p>
 
 [REA](https://github.com/morluto/rea)(morluto, MIT)가 엔진입니다: Ghidra·jadx·IDA·Hopper·Kuna와 엔진 불필요 분석기 여럿을 움직이는
 MCP 툴 207개. **REA for Claude는 REA를 포크하거나 고치지 않습니다** — 원본 `rea-agents` 패키지를 그대로 실행하고, 그것을
@@ -194,7 +204,10 @@ claude.ai → Settings → Connectors → *Add custom connector*에 `https://<�
 ## 🔍 동작 원리
 
 <p align="center">
-  <img alt="아키텍처: SessionStart·UserPromptSubmit 훅과 런처가 원본 REA MCP 서버를 감싸고, 스스로 설치되는 ~/.rea-engines 디렉터리를 읽는 구조" src="docs/img/architecture.svg" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/architecture-dark.svg">
+    <img alt="아키텍처: SessionStart·UserPromptSubmit 훅과 런처가 원본 REA MCP 서버를 감싸고, 스스로 설치되는 ~/.rea-engines 디렉터리를 읽는 구조" src="docs/img/architecture-light.svg" width="100%">
+  </picture>
 </p>
 
 ```mermaid
