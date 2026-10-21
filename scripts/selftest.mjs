@@ -15,9 +15,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(ROOT);
+const enginesLib = createRequire(import.meta.url)('./rea-engines-lib.cjs');
 let failed = 0;
 const ok = (m) => console.log(`  ok   ${m}`);
 const bad = (m) => { console.log(`  FAIL ${m}`); failed++; };
@@ -96,8 +98,10 @@ section('engine installer + SessionStart hook (offline, cross-platform)');
   const base = { ...process.env, REA_PLUGIN_ENGINES_DIR: edir, REA_PLUGIN_CONFIG: path.join(os.tmpdir(), 'definitely-missing-rea-config.json') };
   // dry run: plans per-OS downloads, writes nothing
   const dry = spawnSync(process.execPath, ['scripts/install-engines.cjs', '--dry-run'], { encoding: 'utf8', env: base, timeout: 60000 });
-  const planned = /plan: Ghidra 12\.1\.4/.test(dry.stdout) && /plan: jadx-headless-mcp/.test(dry.stdout) && new RegExp(`platform ${process.platform}/${process.arch}`).test(dry.stdout);
-  if (dry.status === 0 && planned && !fs.existsSync(path.join(edir, 'install.lock'))) ok(`install-engines.cjs --dry-run plans Ghidra+jadx for ${process.platform}/${process.arch} without touching disk`);
+  // the installer labels the OS as windows/macos/linux (lib.platformInfo().label), not process.platform
+  const platLabel = enginesLib.platformInfo().label;
+  const planned = /plan: Ghidra 12\.1\.4/.test(dry.stdout) && /plan: jadx-headless-mcp/.test(dry.stdout) && dry.stdout.includes(`platform ${platLabel};`);
+  if (dry.status === 0 && planned && !fs.existsSync(path.join(edir, 'install.lock'))) ok(`install-engines.cjs --dry-run plans Ghidra+jadx for ${platLabel} without touching disk`);
   else bad(`install-engines.cjs --dry-run: status ${dry.status}\n${dry.stdout}\n${dry.stderr}`);
   // hook, auto disabled: reports missing, starts nothing
   const h1 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_AUTO_ENGINES: '0' }, timeout: 30000 });
@@ -107,10 +111,12 @@ section('engine installer + SessionStart hook (offline, cross-platform)');
   const h2 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs', '--status'], { encoding: 'utf8', env: base, timeout: 30000 });
   if (h2.status === 0 && /engines missing/.test(h2.stdout) && !fs.existsSync(path.join(edir, 'install.log'))) ok('ensure-engines.cjs --status only reports');
   else bad(`ensure-engines.cjs --status: ${h2.stdout} ${h2.stderr}`);
-  // hook, fake ready layout: Ghidra dir + jar present -> "ready" (JDK check uses whatever this host has)
+  // hook, fake ready layout: Ghidra dir + jar present -> "ready". REA_PLUGIN_SKIP_JDK=1 keeps the
+  // check hermetic: CI runners ship different default JDKs (ubuntu-latest: 17), and a missing
+  // JDK 21 would otherwise turn this into an "engines missing" line without the per-engine marks.
   fs.mkdirSync(path.join(edir, 'ghidra_12.1.4_PUBLIC', 'support'), { recursive: true });
   fs.writeFileSync(path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar'), 'x');
-  const h3 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs', '--status'], { encoding: 'utf8', env: base, timeout: 30000 });
+  const h3 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs', '--status'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_SKIP_JDK: '1' }, timeout: 30000 });
   if (h3.status === 0 && /Ghidra ✓/.test(h3.stdout) && /jadx ✓/.test(h3.stdout)) ok('ensure-engines.cjs discovers an installed layout');
   else bad(`ensure-engines.cjs (ready): ${h3.stdout} ${h3.stderr}`);
   // launcher: discovered engines reach REA; a fresh install.lock suppresses a second installer
