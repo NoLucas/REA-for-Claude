@@ -3,15 +3,20 @@
 <h1 align="center">REA for Claude</h1>
 
 <p align="center">
-  <b>Reverse Engineer Anything — from any Claude surface.</b><br>
-  Run <a href="https://github.com/morluto/rea">REA</a>'s 207 reverse-engineering tools in Claude Code, Claude Desktop,
-  and <b>claude.ai cloud sessions where Ghidra installs itself</b> — then turn the findings into a shareable report.
+  <b>Reverse Engineer Anything — from any Claude surface, with zero setup.</b><br>
+  Run <a href="https://github.com/morluto/rea">REA</a>'s 207 reverse-engineering tools in Claude Code (Windows · macOS · Linux), Claude Desktop
+  and claude.ai cloud sessions. <b>The engines install themselves</b>, reverse-engineering requests are <b>routed to REA automatically</b>,
+  and the findings become a shareable report.
+</p>
+
+<p align="center">
+  <img alt="Upstream REA: five manual steps on one machine. REA for Claude: one plugin install, engines install themselves, works in Claude Code, Claude Desktop and claude.ai cloud, with reports and self-repair." src="docs/img/upstream-vs-plugin.svg" width="100%">
 </p>
 
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
-  <img alt="Plugin 0.5.0" src="https://img.shields.io/badge/plugin-0.5.0-7b4bd8">
+  <img alt="Plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Node 22+" src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933">
@@ -19,6 +24,7 @@
 
 <p align="center">
   <a href="#-quick-start">Quick start</a> ·
+  <a href="#-how-this-differs-from-upstream-rea">vs. upstream REA</a> ·
   <a href="#-features">Features</a> ·
   <a href="#-how-it-works">How it works</a> ·
   <a href="#-commands--skills">Commands</a> ·
@@ -37,12 +43,35 @@ That makes it a Claude Code–terminal tool by default. **REA for Claude** remov
 | Where your session runs | What happens | PC needed | Status |
 |---|---|:---:|:---:|
 | **claude.ai cloud session** (web · mobile · claude.ai/code) | Attach this repo → REA starts in the container, **Ghidra 12.1.4 + jadx auto-install** in the background | ✗ | ✅ verified end-to-end |
-| **Local Claude Code** (Windows · macOS · Linux) | Install the plugin → the first session **auto-installs JDK 21 (if needed) + Ghidra + jadx for your OS/CPU** in the background | ✓ | ✅ installer verified (Linux live, Windows/macOS in CI dry-run) |
+| **Local Claude Code** (Windows · macOS · Linux) | Install the plugin → the first session **auto-installs JDK 21 (if needed) + Ghidra + jadx for your OS/CPU** in the background | ✓ | ✅ verified live on Windows 11 and Linux (207 tools, 26 s install); macOS in CI |
 | **Claude Desktop + linked claude.ai session** | REA runs on your PC; the desktop app relays its tools, so you can continue from your phone | ✓ | ⚠️ follows the REA team's Windows 11 path |
 | **Remote appliance** (Docker + tunnel → custom connector) | REA + engines baked into a Linux container behind HTTPS | server | ⚠️ components verified, image build not run |
 
 > **Legal note.** Reverse engineering must respect the target's license, terms of service and local law.
 > Read upstream REA's [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md) before use.
+
+## 🆚 How this differs from upstream REA
+
+[REA](https://github.com/morluto/rea) (by morluto, MIT) is the engine: 207 MCP tools that drive Ghidra, jadx, IDA, Hopper, Kuna and
+a dozen engine-free analyzers. **REA for Claude does not fork or modify REA** — it runs the unmodified `rea-agents` package and adds
+everything needed to make it a one-line, zero-setup, go-anywhere Claude plugin. Both projects are MIT; the legal notes and provider
+licences of upstream apply unchanged.
+
+| | Upstream REA | REA for Claude |
+|---|---|---|
+| **Install** | `npx rea-agents setup` — you install a JDK 21, Ghidra, jadx (and set `GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `JAVA_HOME`) yourself first | `claude plugin install rea@rea-for-claude` — a SessionStart hook installs JDK 21 (if none is found), Ghidra 12.1.4 (SHA-256 verified) and jadx for your OS/CPU in the background on first use |
+| **Where it runs** | The machine and client it was set up on (Claude Code, Codex, Cursor, Gemini CLI, …) | Claude Code on Windows · macOS · Linux, Claude Desktop (`.mcpb`, with linked sessions from your phone), claude.ai cloud sessions with no PC, and a Docker appliance behind OAuth 2.1 |
+| **Using it** | You ask for REA in the prompt, or Claude reaches for `strings`/`objdump` | A `UserPromptSubmit` router recognises reverse-engineering requests (EN/KO: "decompile", 리버싱, an `.apk`/`.exe`/firmware file + analysis verb) and steers Claude to the REA tools and the right playbook; `/rea:why` explains, allow/deny patterns tune it |
+| **Guidance** | REA's `reverse-engineer-anything` skill | The same skill (vendored, MIT) **plus** per-target playbooks (ELF/PE/Mach-O, APK, Electron, firmware, wasm, Go/Rust/Flutter) and `/rea:analyze` that collects evidence as it goes |
+| **Output** | Tool results in the chat | `/rea:report`: self-contained HTML (6 themes) / Markdown / JSON, portable evidence bundles, and `--diff` of two builds (changed fields, added/removed procedures and strings, line diff of decompiled code) |
+| **Health** | `rea doctor` reports what is missing | `/rea:doctor` validates what is on disk (half-extracted Ghidra, JRE without `javac`, truncated jar, stale pin) and prints the exact repair command; `--upgrade` moves to new pins safely |
+| **Networks** | Manual downloads | Resumable downloads (`curl -C -` / HTTP Range), offline installs from `~/.rea-engines/archives/`, proxy-aware, one shared engine directory per machine |
+| **Windows** | Ghidra support "experimental", WSL by hand | Native installer with the built-in `tar.exe`, npx without `cmd.exe` quoting, automatic `C:\` → `/mnt/c/` translation, `--wsl` provisioning — verified on Windows 11 x64 |
+| **Releases** | npm package | Plugin marketplace + signed 3-OS `.mcpb` desktop extensions on every tag; `docs/STABILITY.md` lists what 1.x keeps stable |
+| **Not changed** | Kuna, IDA, Hopper and JEB stay caller-supplied; analysis semantics, tool names and evidence format are REA's | Same — the plugin never alters a tool result |
+
+If you only use Claude Code on one Linux box and already have Ghidra configured, upstream REA alone is enough. The plugin pays off the moment a
+second machine, a Windows laptop, a phone, a teammate without Ghidra, or a report for someone else enters the picture.
 
 ## ⚡ Quick start
 
@@ -166,6 +195,10 @@ Add `https://<tunnel>/<REA_PATH_SECRET>/mcp` under claude.ai → Settings → Co
 | 📜 **Stability guarantees** | [docs/STABILITY.md](docs/STABILITY.md) lists the configuration keys, the `~/.rea-engines` layout, CLI flags and file schemas that 1.x keeps stable. |
 
 ## 🔍 How it works
+
+<p align="center">
+  <img alt="Architecture: SessionStart and UserPromptSubmit hooks and the launcher around the unmodified REA MCP server, reading a self-installing ~/.rea-engines directory" src="docs/img/architecture.svg" width="100%">
+</p>
 
 ```mermaid
 flowchart LR
