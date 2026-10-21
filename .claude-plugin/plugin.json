@@ -1,8 +1,8 @@
 {
   "name": "rea",
   "displayName": "REA — Reverse Engineer Anything",
-  "version": "0.5.0",
-  "description": "Runs the REA (Reverse Engineer Anything) MCP server wherever your Claude session runs: Claude Code, Claude Desktop (and claude.ai sessions linked to it), and claude.ai cloud sessions where Ghidra and jadx are installed automatically. Ships REA's investigation skill, guided per-target workflows, a shareable HTML/Markdown report generator, and /rea:analyze, /rea:report, /rea:doctor, /rea:capabilities, /rea:install-engines.",
+  "version": "0.6.0",
+  "description": "Runs the REA (Reverse Engineer Anything) MCP server wherever your Claude session runs: Claude Code, Claude Desktop (and claude.ai sessions linked to it), and claude.ai cloud sessions. Engines install themselves on first use on Windows, macOS and Linux — JDK 21 if needed, Ghidra 12.1.4 (SHA-256 verified) and jadx — picked for your OS and CPU. Ships REA's investigation skill, guided per-target workflows, a shareable HTML/Markdown report generator, and /rea:analyze, /rea:report, /rea:doctor, /rea:capabilities, /rea:install-engines.",
   "author": {
     "name": "NoLucas",
     "url": "https://github.com/NoLucas"
@@ -10,11 +10,27 @@
   "homepage": "https://github.com/NoLucas/REA-for-Claude",
   "repository": "https://github.com/NoLucas/REA-for-Claude",
   "license": "MIT",
-  "keywords": ["reverse-engineering", "rea", "ghidra", "ida", "jadx", "mcp", "security", "decompile", "android", "electron"],
+  "keywords": [
+    "reverse-engineering",
+    "rea",
+    "ghidra",
+    "ida",
+    "jadx",
+    "mcp",
+    "security",
+    "decompile",
+    "android",
+    "electron",
+    "windows",
+    "macos",
+    "auto-install"
+  ],
   "mcpServers": {
     "rea": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/launch-rea.cjs"]
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/launch-rea.cjs"
+      ]
     }
   }
 }

@@ -24,6 +24,10 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Cross-platform self-test (incl. live MCP smoke)
         run: node scripts/selftest.mjs
+      - name: Engine installer dry run (per-OS download plan, no downloads)
+        run: node scripts/install-engines.cjs --dry-run
+      - name: SessionStart hook (status only)
+        run: node scripts/ensure-engines.cjs --status
       - name: PowerShell syntax check
         if: runner.os == 'Windows'
         shell: pwsh

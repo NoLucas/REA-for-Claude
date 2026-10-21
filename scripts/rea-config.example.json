@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.rea-plugin.json (or point REA_PLUGIN_CONFIG at it). Every key is optional; blank values are ignored.",
+  "_comment": "Copy to ~/.rea-plugin.json (or point REA_PLUGIN_CONFIG at it). Every key is optional; blank values are ignored. auto_engines=true (default) installs missing engines in the background on Windows, macOS and Linux; jdk=false stops the installer from downloading a JDK 21 when none is found.",
 
   "rea_version": "6.7.0",
 
@@ -8,9 +8,11 @@
   "kuna_command": "",
   "ida_mcp_config": "",
   "browser_executable": "",
+  "java_home": "",
 
   "engines_dir": "",
-  "auto_engines": false,
+  "auto_engines": true,
+  "jdk": true,
   "engines": ["ghidra", "jadx", "apt"],
 
   "use_wsl": false,

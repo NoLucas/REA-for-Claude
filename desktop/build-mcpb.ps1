@@ -13,7 +13,7 @@ if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
 New-Item -ItemType Directory -Force -Path (Join-Path $Stage "server") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $Root "dist") | Out-Null
 Copy-Item (Join-Path $Root "desktop\manifest.json") (Join-Path $Stage "manifest.json")
-Copy-Item (Join-Path $Root "scripts\launch-rea.cjs") (Join-Path $Stage "server\launch-rea.cjs")
+foreach ($f in @("launch-rea.cjs", "rea-engines-lib.cjs", "install-engines.cjs", "install-engines.sh")) { Copy-Item (Join-Path $Root "scripts\$f") (Join-Path $Stage "server\$f") }
 Copy-Item (Join-Path $Root "LICENSE") (Join-Path $Stage "LICENSE")
 if (Test-Path (Join-Path $Root "desktop\icon.png")) { Copy-Item (Join-Path $Root "desktop\icon.png") (Join-Path $Stage "icon.png") }
 
