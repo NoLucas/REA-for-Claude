@@ -11,7 +11,7 @@
  * nothing. Runs in ~50 ms; it never spawns anything.
  *
  * Detection is deliberately conservative: a verb of intent (reverse engineer, decompile,
- * analyse this binary, 디컴파일, 리버싱 …) or a binary-ish file extension together with an
+ * analyse this binary, 디컴파일, 리버싱, 反编译, 逆向, 逆コンパイル, 解析 …) or a binary-ish file extension together with an
  * analysis verb. Plain source-code questions are left alone (REA's own skill says to skip it
  * for ordinary repository architecture analysis).
  *
@@ -40,16 +40,22 @@ const STRONG = [
   /\b(?:malware|sample) analysis\b/i,
   /리버스\s?엔지니어링|리버싱|디컴파일|역컴파일|디스어셈블|역어셈블|난독화\s?해제|언패킹/,
   /(?:바이너리|실행\s?파일|펌웨어|악성코드|앱|apk|dll|exe|so 파일)\s?(?:분석|뜯어|해부|구조)/i,
+  // Chinese (simplified + traditional)
+  /逆向(?!思维|思考)|反编译|反編譯|反汇编|反組譯|脱壳|脫殼|去混淆|固件分析|韌體分析|恶意软件分析|惡意軟體分析|样本分析|樣本分析/,
+  /(?:二进制|二進位|可执行文件|可執行檔|固件|韌體|恶意软件|惡意軟體|apk|dll|exe|so 文件)\s?(?:分析|拆解|看看|结构|結構)/i,
+  // Japanese
+  /リバースエンジニアリング|リバエン|逆コンパイル|デコンパイル|逆アセンブル|ディスアセンブル|難読化解除|アンパック|ファームウェア解析|マルウェア解析|検体解析/,
+  /(?:バイナリ|実行ファイル|ファームウェア|マルウェア|アプリ|apk|dll|exe|so ファイル).{0,4}(?:を?解析|を?分析|の中身|の構造)/i,
 ];
 // Binary-ish artefacts: need an analysis verb as well.
 const BINARY_EXT = /(?:^|[\s"'`(\[/\\])[\w.\-]+\.(?:exe|dll|sys|so|dylib|apk|aab|dex|ipa|elf|bin|img|rom|fw|hex|wasm|asar|class|pyc|o|a|ko|efi|msi|xap|appx|deb|rpm)(?=$|[\s"'`)\]:,.?!])/i;
-const ANALYSIS_VERB = /\b(?:analy[sz]e|inspect|understand|what does|how does|look inside|explain|examine|dump|extract|strings?|symbols?|functions?|imports?)\b|분석|살펴|뭐 하는|무슨|어떻게 동작|구조|추출|함수|문자열|심볼/i;
+const ANALYSIS_VERB = /\b(?:analy[sz]e|inspect|understand|what does|how does|look inside|explain|examine|dump|extract|strings?|symbols?|functions?|imports?)\b|분석|살펴|뭐 하는|무슨|어떻게 동작|구조|추출|함수|문자열|심볼|分析|解析|拆解|看看|做什么|是什么|干什么|结构|結構|提取|函数|函數|字符串|字串|符号|符號|何を|何の|どう動|中身|構造|抽出|関数|文字列|シンボル|調べ/i;
 // Target hints for the playbook pointer.
 const TYPES = [
-  [/\.(?:apk|aab|dex)\b|android|안드로이드/i, 'Android APK (jadx)'],
+  [/\.(?:apk|aab|dex)\b|android|안드로이드|安卓|アンドロイド/i, 'Android APK (jadx)'],
   [/\.(?:ipa)\b|\bios app\b/i, 'iOS app (Mach-O via Ghidra)'],
   [/\.(?:asar)\b|electron|일렉트론/i, 'Electron / JavaScript app'],
-  [/\.(?:bin|img|rom|fw|hex)\b|firmware|펌웨어|router|iot/i, 'firmware / packed image'],
+  [/\.(?:bin|img|rom|fw|hex)\b|firmware|펌웨어|固件|韌體|ファームウェア|router|iot/i, 'firmware / packed image'],
   [/\.(?:wasm)\b|webassembly/i, 'WebAssembly'],
   [/\.(?:exe|dll|sys|msi|efi)\b|\bpe\b|windows binary/i, 'native Windows PE (Ghidra)'],
   [/\.(?:so|elf|o|ko|a)\b|\belf\b|linux binary/i, 'native ELF (Ghidra)'],
