@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to ~/.rea-plugin.json (or point REA_PLUGIN_CONFIG at it). Every key is optional; blank values are ignored. auto_engines=true (default) installs missing engines in the background on Windows, macOS and Linux; jdk=false stops the installer from downloading a JDK 21 when none is found.",
+  "_comment": "Copy to ~/.rea-plugin.json (or point REA_PLUGIN_CONFIG at it). Every key is optional; blank values are ignored. auto_engines=true (default) installs missing engines in the background on Windows, macOS and Linux; jdk=false stops the installer from downloading a JDK 21 when none is found; engines may include apktool/radare2 (or optional_engines=true with all); archive_dir holds pre-downloaded release files for offline installs; router=false turns automatic routing off, allow/deny are regexes tested against each prompt.",
 
   "rea_version": "6.7.0",
 
@@ -11,9 +11,13 @@
   "java_home": "",
 
   "engines_dir": "",
+  "archive_dir": "",
   "auto_engines": true,
   "jdk": true,
   "engines": ["ghidra", "jadx", "apt"],
+  "optional_engines": false,
+
+  "router": { "allow": [], "deny": [] },
 
   "use_wsl": false,
   "wsl_distro": "Ubuntu",
@@ -21,7 +25,8 @@
 
   "report": {
     "format": "html",
-    "dir": "rea-reports"
+    "dir": "rea-reports",
+    "theme": "violet"
   },
 
   "env": {
