@@ -1,0 +1,101 @@
+name: Release
+
+# Builds the Claude Desktop extension (.mcpb) on Windows, macOS and Linux, signs it, and
+# attaches the bundles plus SHA-256 sums to the GitHub release for the pushed tag.
+#
+# Signing: with the repository secrets MCPB_SIGNING_CERT (PEM certificate) and
+# MCPB_SIGNING_KEY (PEM private key) the bundles are signed with that certificate. Without
+# them a self-signed certificate is generated in the job, so every bundle still carries a
+# verifiable signature (`mcpb verify`) — the release notes say which kind it is.
+#
+# Trigger: push a tag like v1.0.0, or run it by hand (workflow_dispatch) for a dry build.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build: powershell -ExecutionPolicy Bypass -File desktop/build-mcpb.ps1
+          - os: macos-latest
+            build: bash desktop/build-mcpb.sh
+          - os: ubuntu-latest
+            build: bash desktop/build-mcpb.sh
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Offline self-test
+        run: node scripts/selftest.mjs
+        env:
+          REA_SELFTEST_SKIP_MCP: "1"
+          REA_PLUGIN_AUTO_ENGINES: "0"
+      - name: Build .mcpb
+        run: ${{ matrix.build }}
+      - name: Sign .mcpb
+        shell: bash
+        env:
+          MCPB_SIGNING_CERT: ${{ secrets.MCPB_SIGNING_CERT }}
+          MCPB_SIGNING_KEY: ${{ secrets.MCPB_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          bundle=$(ls dist/*.mcpb | head -1)
+          if [ -n "${MCPB_SIGNING_CERT:-}" ] && [ -n "${MCPB_SIGNING_KEY:-}" ]; then
+            printf '%s' "$MCPB_SIGNING_CERT" > cert.pem
+            printf '%s' "$MCPB_SIGNING_KEY" > key.pem
+            npx -y @anthropic-ai/mcpb sign "$bundle" --cert cert.pem --key key.pem
+            echo "signed=certificate" >> "$GITHUB_OUTPUT"
+            rm -f cert.pem key.pem
+          else
+            npx -y @anthropic-ai/mcpb sign "$bundle" --self-signed
+            echo "signed=self-signed" >> "$GITHUB_OUTPUT"
+          fi
+          npx -y @anthropic-ai/mcpb verify "$bundle"
+          (cd dist && shasum -a 256 *.mcpb > "$(basename "$bundle").sha256" 2>/dev/null || sha256sum *.mcpb > "$(basename "$bundle").sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcpb-${{ matrix.os }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: bundles
+      - name: Collect
+        run: |
+          mkdir -p out && find bundles -type f \( -name '*.mcpb' -o -name '*.sha256' \) -exec cp {} out/ \;
+          ls -la out
+          cat out/*.sha256 > out/SHA256SUMS.txt
+      - name: Release notes
+        run: |
+          {
+            echo "Claude Desktop extensions for Windows (x64), macOS (arm64) and Linux (x64)."
+            echo
+            echo "Each bundle carries a signature (\`mcpb verify <file>\`): a certificate signature when the"
+            echo "repository has MCPB_SIGNING_CERT/KEY secrets, otherwise a self-signed one. Compare"
+            echo "SHA256SUMS.txt before installing."
+            echo
+            echo "Install: Claude Desktop → Settings → Extensions → Advanced → Install Extension… The"
+            echo "extension bundles the launcher and installer, so the engines (JDK 21, Ghidra, jadx)"
+            echo "install themselves on first use exactly like the Claude Code plugin."
+          } > notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          body_path: notes.md
+          generate_release_notes: true

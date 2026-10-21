@@ -91,6 +91,16 @@ section('launcher: blank values are dropped (unit)');
   } catch (e) { bad(`launcher probe: ${r.stderr.trim() || e.message}`); }
 }
 
+// A Ghidra directory that passes validateEngines() without a real download.
+function fakeGhidra(dir, version) {
+  const osDir = process.platform === 'win32' ? 'win_x86_64' : process.platform === 'darwin' ? (process.arch === 'arm64' ? 'mac_arm_64' : 'mac_x86_64') : (process.arch === 'arm64' ? 'linux_arm_64' : 'linux_x86_64');
+  fs.mkdirSync(path.join(dir, 'support'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'Ghidra', 'Features', 'Decompiler', 'os', osDir), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'support', process.platform === 'win32' ? 'analyzeHeadless.bat' : 'analyzeHeadless'), '');
+  fs.writeFileSync(path.join(dir, 'Ghidra', 'application.properties'), `application.version=${version}\n`);
+  fs.writeFileSync(path.join(dir, 'Ghidra', 'Features', 'Decompiler', 'os', osDir, process.platform === 'win32' ? 'decompile.exe' : 'decompile'), '');
+}
+
 section('engine installer + SessionStart hook (offline, cross-platform)');
 {
   const edir = path.join(os.tmpdir(), `rea-engines-selftest-${process.pid}`);
@@ -114,8 +124,10 @@ section('engine installer + SessionStart hook (offline, cross-platform)');
   // hook, fake ready layout: Ghidra dir + jar present -> "ready". REA_PLUGIN_SKIP_JDK=1 keeps the
   // check hermetic: CI runners ship different default JDKs (ubuntu-latest: 17), and a missing
   // JDK 21 would otherwise turn this into an "engines missing" line without the per-engine marks.
-  fs.mkdirSync(path.join(edir, 'ghidra_12.1.4_PUBLIC', 'support'), { recursive: true });
-  fs.writeFileSync(path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar'), 'x');
+  // The layout must be *complete* (validateEngines checks headless script, properties and the
+  // native decompiler) and the jar must carry a zip header, or the hook reports it as broken.
+  fakeGhidra(path.join(edir, 'ghidra_12.1.4_PUBLIC'), '12.1.4');
+  fs.writeFileSync(path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar'), 'PK\u0003\u0004fake');
   const h3 = spawnSync(process.execPath, ['scripts/ensure-engines.cjs', '--status'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_SKIP_JDK: '1' }, timeout: 30000 });
   if (h3.status === 0 && /Ghidra ✓/.test(h3.stdout) && /jadx ✓/.test(h3.stdout)) ok('ensure-engines.cjs discovers an installed layout');
   else bad(`ensure-engines.cjs (ready): ${h3.stdout} ${h3.stderr}`);
@@ -164,6 +176,78 @@ section('rea-router: reverse-engineering prompts route to REA, others are untouc
   const u = h.hooks?.UserPromptSubmit?.[0]?.hooks?.[0];
   if (u?.command === 'node' && u.args?.[0]?.includes('rea-router.cjs')) ok('hooks/hooks.json: UserPromptSubmit runs rea-router.cjs');
   else bad('hooks/hooks.json: UserPromptSubmit hook missing');
+}
+
+section('1.0: validation/repair, offline archives, router tuning, report themes/json/bundles, release workflow');
+{
+  const edir = path.join(os.tmpdir(), `rea-10-selftest-${process.pid}`);
+  fs.rmSync(edir, { recursive: true, force: true });
+  const base = { ...process.env, REA_PLUGIN_ENGINES_DIR: edir, REA_PLUGIN_CONFIG: path.join(os.tmpdir(), 'definitely-missing-rea-config.json'), REA_PLUGIN_AUTO_ENGINES: '0' };
+  // a half-extracted Ghidra must be reported as broken with the exact repair command
+  fs.mkdirSync(path.join(edir, 'ghidra_12.1.4_PUBLIC', 'support'), { recursive: true });
+  fs.writeFileSync(path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar'), 'not a jar');
+  const st = spawnSync(process.execPath, ['scripts/ensure-engines.cjs', '--status'], { encoding: 'utf8', env: base, timeout: 30000 });
+  if (st.status === 0 && /✗ ghidra: incomplete Ghidra/.test(st.stdout) && /--force --only ghidra/.test(st.stdout) && /✗ jadx: .*not a valid jar/.test(st.stdout) && /--force --only jadx/.test(st.stdout)) ok('doctor self-repair: half-extracted Ghidra and truncated jar get exact --force --only repair commands');
+  else bad(`self-repair: ${st.stdout} ${st.stderr}`);
+  // offline archive: a file in <dir>/archives is used without network (jadx has no pinned sha, so any content works)
+  fs.rmSync(path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar'), { force: true });
+  fs.mkdirSync(path.join(edir, 'archives'), { recursive: true });
+  fs.writeFileSync(path.join(edir, 'archives', 'jadx-headless-mcp-0.7.1-all.jar'), 'PK\u0003\u0004offline');
+  const off = spawnSync(process.execPath, ['scripts/install-engines.cjs', '--only', 'jadx', '--dir', edir], { encoding: 'utf8', env: { ...base, REA_PLUGIN_SKIP_JDK: '1', REA_PLUGIN_SKIP_APT: '1' }, timeout: 60000 });
+  if (off.status === 0 && /using archived jadx-headless-mcp-0\.7\.1-all\.jar/.test(off.stdout) && fs.readFileSync(path.join(edir, 'jadx-headless-mcp-0.7.1-all.jar'), 'utf8').includes('offline')) ok('offline mode: archives/<file> is installed without any download');
+  else bad(`offline mode: ${off.stdout} ${off.stderr}`);
+  // --upgrade: an older Ghidra dir is reported, not silently replaced, without the flag
+  fs.rmSync(path.join(edir, 'ghidra_12.1.4_PUBLIC'), { recursive: true, force: true });
+  fs.mkdirSync(path.join(edir, 'ghidra_12.1.3_PUBLIC', 'support'), { recursive: true });
+  const up = spawnSync(process.execPath, ['scripts/install-engines.cjs', '--only', 'ghidra', '--dir', edir], { encoding: 'utf8', env: { ...base, REA_PLUGIN_SKIP_JDK: '1', REA_PLUGIN_SKIP_APT: '1' }, timeout: 60000 });
+  if (/found ghidra_12\.1\.3_PUBLIC; pinned 12\.1\.4 not installed — run with --upgrade/.test(up.stdout) && fs.existsSync(path.join(edir, 'ghidra_12.1.3_PUBLIC'))) ok('version policy: an older Ghidra is kept and --upgrade is suggested');
+  else bad(`version policy: ${up.stdout} ${up.stderr}`);
+  // dry run with optional engines lists apktool (and radare2 on Windows)
+  const dry = spawnSync(process.execPath, ['scripts/install-engines.cjs', '--dry-run', '--dir', path.join(edir, 'none')], { encoding: 'utf8', env: { ...base, REA_PLUGIN_OPTIONAL_ENGINES: '1' }, timeout: 60000 });
+  if (dry.status === 0 && /plan: apktool 3\.0\.3/.test(dry.stdout) && (process.platform !== 'win32' || /plan: radare2 6\.2\.4/.test(dry.stdout))) ok('optional engines: dry run plans apktool' + (process.platform === 'win32' ? ' and radare2' : ''));
+  else bad(`optional engines dry run: ${dry.stdout} ${dry.stderr}`);
+  // router tuning: config off, deny, allow, project override, --why
+  const cfg = path.join(edir, 'cfg.json');
+  fs.writeFileSync(cfg, JSON.stringify({ router: { deny: ['^skip rea'], allow: ['\\bvendor blob\\b'] } }));
+  const r1 = spawnSync(process.execPath, ['scripts/rea-router.cjs', '--test', 'skip rea: decompile x.exe'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_CONFIG: cfg }, timeout: 20000 });
+  const r2 = spawnSync(process.execPath, ['scripts/rea-router.cjs', '--why', 'inspect the vendor blob please'], { encoding: 'utf8', env: { ...base, REA_PLUGIN_CONFIG: cfg }, timeout: 20000 });
+  const r3 = spawnSync(process.execPath, ['scripts/rea-router.cjs'], { input: JSON.stringify({ prompt: 'decompile x.exe' }), encoding: 'utf8', env: { ...base, REA_PLUGIN_ROUTER: '0' }, timeout: 20000 });
+  const proj = path.join(edir, 'proj'); fs.mkdirSync(proj, { recursive: true });
+  fs.writeFileSync(path.join(proj, '.rea-plugin.json'), JSON.stringify({ router: { deny: ['\\.exe\\b'] } }));
+  const r4 = spawnSync(process.execPath, ['scripts/rea-router.cjs', '--test', 'decompile x.exe'], { encoding: 'utf8', env: { ...base, CLAUDE_PROJECT_DIR: proj }, timeout: 20000 });
+  try {
+    const j1 = JSON.parse(r1.stdout), j2 = JSON.parse(r2.stdout), j4 = JSON.parse(r4.stdout);
+    if (!j1.reverseEngineering && /deny pattern/.test(j1.rule) && j2.reverseEngineering && /allow pattern/.test(j2.rule) && j2.config && r3.stdout.trim() === '' && !j4.reverseEngineering && /deny pattern/.test(j4.rule)) ok('router tuning: deny, allow, REA_PLUGIN_ROUTER=0 and project .rea-plugin.json override all apply; --why reports config');
+    else bad(`router tuning: ${r1.stdout} ${r2.stdout} [${r3.stdout}] ${r4.stdout}`);
+  } catch (e) { bad(`router tuning: ${e.message} ${r1.stderr} ${r2.stderr} ${r4.stderr}`); }
+  // report: themes, json, bundle, diff of two bundles
+  const rep = path.join(edir, 'rep');
+  const a = spawnSync(process.execPath, ['scripts/make-report.mjs', 'tests/fixtures', '--out', rep, '--format', 'all', '--theme', 'ocean', '--bundle'], { encoding: 'utf8', timeout: 60000 });
+  let repOk = false;
+  try {
+    const w = JSON.parse(a.stdout).written;
+    const html = w.find((f) => f.endsWith('.html')), json = w.find((f) => /[0-9]\.json$/.test(f)), bundle = w.find((f) => f.endsWith('.rea-bundle.json'));
+    const jm = JSON.parse(fs.readFileSync(json, 'utf8')), bm = JSON.parse(fs.readFileSync(bundle, 'utf8'));
+    repOk = fs.readFileSync(html, 'utf8').includes('#0b6bcb') && jm.schema === 'rea-for-claude/report@1' && jm.targets.length === 1 && bm.rea_bundle.schema === 'rea-for-claude/bundle@1' && bm.rea_bundle.count === 2 && bm.evidence.length === 2;
+  } catch { repOk = false; }
+  if (a.status === 0 && repOk) ok('make-report: ocean theme applied, JSON model and evidence bundle written');
+  else bad(`make-report 1.0: ${a.stdout} ${a.stderr}`);
+  const b1 = spawnSync(process.execPath, ['scripts/make-report.mjs', 'tests/fixtures/diff-before', '--out', path.join(rep, 'x'), '--format', 'md', '--bundle', path.join(rep, 'before.rea-bundle.json')], { encoding: 'utf8', timeout: 60000 });
+  const b2 = spawnSync(process.execPath, ['scripts/make-report.mjs', 'tests/fixtures/diff-after', '--out', path.join(rep, 'y'), '--format', 'md', '--bundle', path.join(rep, 'after.rea-bundle.json')], { encoding: 'utf8', timeout: 60000 });
+  const d = spawnSync(process.execPath, ['scripts/make-report.mjs', '--diff', path.join(rep, 'before.rea-bundle.json'), path.join(rep, 'after.rea-bundle.json'), '--out', path.join(rep, 'd'), '--format', 'json'], { encoding: 'utf8', timeout: 60000 });
+  try {
+    const dj = JSON.parse(d.stdout); const dm = JSON.parse(fs.readFileSync(dj.written[0], 'utf8'));
+    if (b1.status === 0 && b2.status === 0 && dj.changed === 2 && dm.schema === 'rea-for-claude/diff@1') ok('make-report --diff accepts two evidence bundles and writes the diff JSON model');
+    else bad(`bundle diff: ${d.stdout}`);
+  } catch (e) { bad(`bundle diff: ${e.message} ${d.stderr}`); }
+  const bt = spawnSync(process.execPath, ['scripts/make-report.mjs', 'tests/fixtures', '--out', rep, '--theme', 'neon'], { encoding: 'utf8', timeout: 60000 });
+  if (bt.status === 2 && /--theme must be one of/.test(bt.stderr)) ok('make-report rejects an unknown theme'); else bad('make-report theme validation');
+  // release workflow + stability doc + /rea:why exist and look right
+  const rel = fs.existsSync('.github/workflows/release.yml') ? fs.readFileSync('.github/workflows/release.yml', 'utf8') : '';
+  if (/windows-latest/.test(rel) && /macos-latest/.test(rel) && /ubuntu-latest/.test(rel) && /mcpb sign/.test(rel) && /--self-signed/.test(rel) && /mcpb verify/.test(rel)) ok('release.yml builds, signs and verifies .mcpb on 3 OSes');
+  else bad('release.yml missing or incomplete');
+  if (fs.existsSync('docs/STABILITY.md') && fs.existsSync('commands/why.md')) ok('docs/STABILITY.md and /rea:why present'); else bad('STABILITY.md or why.md missing');
+  fs.rmSync(edir, { recursive: true, force: true });
 }
 
 section('launcher MCP smoke (stdio initialize + tools/list)');

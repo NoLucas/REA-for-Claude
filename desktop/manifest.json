@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "rea-for-claude",
   "display_name": "REA — Reverse Engineer Anything",
-  "version": "0.5.0",
-  "description": "REA's 207 reverse-engineering tools as a one-click Claude Desktop extension. Bundles rea-agents 6.7.0; point it at your Ghidra / jadx / Kuna / IDA installs from the settings panel.",
-  "long_description": "Runs the REA (Reverse Engineer Anything) MCP server inside Claude Desktop using the app's built-in Node runtime, so no Node.js install is required. Analysis engines (Ghidra 12.1.4, jadx-headless-mcp 0.7.1, Kuna, IDA) are not bundled: install the ones you need and select their paths in the extension settings. Blank settings are ignored. Sessions linked to this computer can use the tools from claude.ai on the web and your phone.",
+  "version": "1.0.0",
+  "description": "REA's 207 reverse-engineering tools as a one-click Claude Desktop extension. Bundles rea-agents 6.7.0; the engines (JDK 21, Ghidra 12.1.4, jadx) install themselves into ~/.rea-engines on first use, or point it at your own installs from the settings panel.",
+  "long_description": "Runs the REA (Reverse Engineer Anything) MCP server inside Claude Desktop using the app's built-in Node runtime, so no Node.js install is required. On first start the bundled installer fetches the analysis engines for this OS and CPU into ~/.rea-engines in the background (JDK 21 when none is usable, Ghidra 12.1.4 with SHA-256 verification, jadx-headless-mcp 0.7.1); the settings panel lets you point at your own Ghidra / jadx / Kuna / IDA installs instead. Blank settings are ignored. Sessions linked to this computer can use the tools from claude.ai on the web and your phone.",
   "author": {
     "name": "NoLucas",
     "url": "https://github.com/NoLucas/REA-for-Claude"
@@ -13,13 +13,22 @@
   "documentation": "https://github.com/NoLucas/REA-for-Claude#readme",
   "support": "https://github.com/NoLucas/REA-for-Claude/issues",
   "license": "MIT",
-  "keywords": ["reverse-engineering", "ghidra", "jadx", "security", "decompile", "mcp"],
+  "keywords": [
+    "reverse-engineering",
+    "ghidra",
+    "jadx",
+    "security",
+    "decompile",
+    "mcp"
+  ],
   "server": {
     "type": "node",
     "entry_point": "server/launch-rea.cjs",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/server/launch-rea.cjs"],
+      "args": [
+        "${__dirname}/server/launch-rea.cjs"
+      ],
       "env": {
         "REA_PLUGIN_REA_COMMAND": "${__dirname}/server/node_modules/rea-agents/scripts/rea.mjs",
         "REA_PLUGIN_GHIDRA_INSTALL_DIR": "${user_config.ghidra_install_dir}",
@@ -66,7 +75,13 @@
   },
   "compatibility": {
     "claude_desktop": ">=1.0.0",
-    "platforms": ["darwin", "win32", "linux"],
-    "runtimes": { "node": ">=22.0.0" }
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=22.0.0"
+    }
   }
 }

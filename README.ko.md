@@ -147,16 +147,20 @@ claude.ai → Settings → Connectors → *Add custom connector*에 `https://<�
 | | |
 |---|---|
 | 🌍 **어디서든 실행** | 범용 런처 하나(`scripts/launch-rea.cjs`)가 Claude Code, Claude Desktop, claude.ai 클라우드 세션, Docker를 모두 담당합니다. |
-| ⚙️ **모든 OS에서 엔진 자동 설치** | 첫 세션에서 JDK 21(쓸 만한 게 없을 때), Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1을 OS와 CPU에 맞춰 백그라운드로 설치합니다 — Windows x64, macOS arm64/x64, Linux x64/arm64. Linux는 apt 도구 묶음까지. 엔진별 선택 가능, 멱등, `~/.rea-engines` 하나를 공유. |
-| 🧲 **리버스 엔지니어링이면 REA가 기본** | `UserPromptSubmit` 훅(`scripts/rea-router.cjs`, 약 40ms)이 리버스 엔지니어링 요청을 알아봅니다 — "reverse engineer", "decompile", 디컴파일, 리버싱, 또는 바이너리/APK/펌웨어 파일 + 분석 동사 — 그리고 Claude에게 REA 툴과 맞는 플레이북을 쓰라고, 현재 엔진 상태와 함께 알려줍니다. 일반 소스코드 질문은 건드리지 않습니다. |
+| ⚙️ **모든 OS에서 엔진 자동 설치** | 첫 세션에서 JDK 21(쓸 만한 게 없을 때), Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1을 OS와 CPU에 맞춰 백그라운드로 설치합니다 — Windows x64, macOS arm64/x64, Linux x64/arm64. Linux는 apt 도구 묶음까지, 원하면 apktool·radare2도. 엔진별 선택 가능, 멱등, `~/.rea-engines` 하나를 공유. |
+| 🩺 **자가 복구** | `/rea:doctor`가 디스크 상태를 검증합니다 — 반쯤 풀린 Ghidra, `javac` 없는 JRE, 잘린 jar, 오래된 버전 — 그리고 고치는 정확한 명령(`install-engines.cjs --force --only …` / `--upgrade`)을 출력합니다. |
+| 📡 **이어받기·오프라인 설치** | 끊긴 다운로드는 이어받습니다(`curl -C -` / HTTP Range). 릴리스 파일을 `~/.rea-engines/archives/`(또는 `REA_PLUGIN_ARCHIVE_DIR`)에 넣어 두면 폐쇄망에서도 네트워크 없이 설치되며, 모든 파일은 SHA-256 검사를 거칩니다. |
+| 📌 **고정 버전, 검증된 업그레이드** | 버전과 체크섬은 한 곳(`rea-engines-lib.cjs`)에만 있습니다. `install-engines.cjs --upgrade`가 기존 설치를 고정 버전으로 옮기고, 새 것이 검증된 뒤에만 옛 복사본을 지웁니다. |
+| 🧲 **리버스 엔지니어링이면 REA가 기본** | `UserPromptSubmit` 훅(`scripts/rea-router.cjs`, 약 40ms)이 리버스 엔지니어링 요청을 알아봅니다 — "reverse engineer", "decompile", 디컴파일, 리버싱, 또는 바이너리/APK/펌웨어 파일 + 분석 동사 — 그리고 Claude에게 REA 툴과 맞는 플레이북을 쓰라고, 현재 엔진 상태와 함께 알려줍니다. 일반 소스코드 질문은 건드리지 않습니다. `"router": false`나 allow/deny 정규식(사용자·프로젝트별)으로 조정하고, `/rea:why`가 판단 이유를 설명합니다. |
 | 🧭 **가이드 워크플로** | `/rea:analyze`가 대상 유형(네이티브 바이너리·APK·Electron/JS·펌웨어·웹 번들)별 플레이북을 골라 조사하며 증거를 모읍니다. |
-| 📄 **공유용 리포트** | `/rea:report`가 REA evidence를 독립 실행 HTML(라이트/다크) 또는 Markdown 리포트로 만듭니다 — 디컴파일 코드, 개요, provider, confidence, limitations. 의존성 0. |
-| 🔀 **evidence diff** | `/rea:report --diff <before> <after>`로 두 빌드를 비교: 개요 필드 변화, 추가/삭제된 프로시저·문자열·세그먼트, 디컴파일 코드 라인 diff. |
-| 🖥️ **원클릭 데스크톱 확장** | `desktop/build-mcpb.sh` / `.ps1`이 REA를 엔진 경로 설정 패널이 달린 `.mcpb`로 묶습니다. Claude Desktop 내장 Node를 써서 별도 설치 불필요. |
+| 📄 **공유용 리포트** | `/rea:report`가 REA evidence를 독립 실행 HTML(라이트/다크, 테마 6종), Markdown 또는 JSON 리포트로 만듭니다 — 디컴파일 코드, 개요, provider, confidence, limitations. 의존성 0. |
+| 🔀 **evidence diff & 번들** | `/rea:report --diff <before> <after>`로 두 빌드를 비교: 개요 필드 변화, 추가/삭제된 프로시저·문자열·세그먼트, 디컴파일 코드 라인 diff. `--bundle`은 evidence를 이동 가능한 `*.rea-bundle.json` 하나로 묶고, `--diff`는 어느 머신에서 만든 번들이든 받습니다. |
+| 🖥️ **원클릭 데스크톱 확장** | `desktop/build-mcpb.sh` / `.ps1`이 REA·런처·설치기를 엔진 경로 설정 패널이 달린 `.mcpb`로 묶습니다. Claude Desktop 내장 Node를 써서 별도 설치 불필요. 태그 릴리스는 Windows·macOS·Linux용으로 빌드·서명됩니다(`.github/workflows/release.yml`). |
 | 🔐 **OAuth 보호 원격** | `remote/docker-compose.oauth.yml`이 의존성 없는 OAuth 2.1 게이트웨이(DCR + PKCE + 로그인 페이지)를 붙여, 경로 비밀 없이 claude.ai 커스텀 커넥터로 쓸 수 있습니다. |
 | 🎛️ **사용자 설정** | `~/.rea-plugin.json`: 엔진 경로, 설치할 엔진, 리포트 형식/경로, WSL 모드, REA 버전, env 통과. 빈 값은 무시. |
 | 🧪 **3개 OS에서 테스트** | `scripts/selftest.mjs`가 CI에서 Windows·macOS·Linux로 실행: 매니페스트·훅 구조, 문법, 리포트/diff 픽스처, 런처 env 처리, 설치기의 OS별 dry-run 계획, SessionStart 훅의 준비/누락/설치중 상태, 설치 락 처리, 그리고 실제 서버를 띄워 툴 제공을 확인하는 라이브 MCP 스모크. |
-| 🪟 **Windows 네이티브** | `install-engines.ps1`, Windows에서의 `.mcpb` 빌드, cmd.exe 인용 없는 npx 실행, WSL 모드의 `C:\` → `/mnt/c/` 자동 변환. `userConfig`에 의존하지 않아 Claude Desktop이 서버를 직접 띄울 수 있습니다. |
+| 🪟 **Windows 네이티브, 필요하면 WSL** | 내장 `tar.exe`를 쓰는 네이티브 설치기, Windows에서의 `.mcpb` 빌드, cmd.exe 인용 없는 npx 실행, WSL 모드의 `C:\` → `/mnt/c/` 자동 변환, 그리고 Linux 전용 도구가 필요할 때 WSL 안에 Linux 엔진 세트를 깔아 주는 `install-engines.cjs --wsl`. |
+| 📜 **안정성 보장** | [docs/STABILITY.md](docs/STABILITY.md)에 1.x 동안 유지되는 설정 키, `~/.rea-engines` 레이아웃, CLI 플래그, 파일 스키마를 정리했습니다. |
 
 ## 🔍 동작 원리
 
@@ -187,11 +191,12 @@ flowchart LR
 | 커맨드 | 하는 일 |
 |---|---|
 | `/rea:analyze <경로> [목표]` | 가이드 조사: 대상 유형 판별 → 맞는 플레이북 실행 → 모든 결과를 `./rea-evidence/*.json`에 저장 |
-| `/rea:report [디렉터리] [--format html\|md\|both]` | 저장된 evidence로 공유용 리포트 생성(설정의 `report.*` 반영) |
-| `/rea:report --diff <before> <after>` | 두 evidence 세트(같은 앱의 두 빌드)를 비교한 변경 리포트 |
+| `/rea:report [디렉터리] [--format html\|md\|json\|both\|all] [--theme …] [--bundle]` | 저장된 evidence로 공유용 리포트 생성(설정의 `report.*` 반영); `--bundle`은 이동 가능한 evidence 번들 작성 |
+| `/rea:report --diff <before> <after>` | 두 evidence 세트 또는 번들(같은 앱의 두 빌드, 다른 머신이어도)을 비교한 변경 리포트 |
 | `/rea:doctor` | MCP 서버 상태, 엔진별 가용 여부, 빠진 엔진의 정확한 해결법 |
 | `/rea:capabilities` | 이 호스트에서 *지금* 가능한 REA 기능을 대상 유형별로 정리 |
-| `/rea:install-engines` | Windows·macOS·Linux 엔진 설치기(멱등, 선택형, `--dry-run`) |
+| `/rea:install-engines` | Windows·macOS·Linux 엔진 설치기(멱등, 선택형, `--dry-run`, `--upgrade`, `--wsl`, 선택 엔진 apktool/radare2) |
+| `/rea:why [프롬프트]` | 어떤 프롬프트가 REA로 라우팅된(안 된) 이유와 라우터 조정 방법 |
 
 | 스킬 | 용도 |
 |---|---|
@@ -213,28 +218,34 @@ flowchart LR
   "java_home": "",                         // 선택; 내려받은 ~/.rea-engines/jdk-21은 자동 탐지
   "auto_engines": true,                    // 첫 사용 시 백그라운드 설치(모든 OS)
   "jdk": true,                             // 쓸 만한 JDK가 없으면 JDK 21 다운로드
-  "engines": ["ghidra", "jadx", "apt"],    // install-engines가 받을 엔진
+  "engines": ["ghidra", "jadx", "apt"],    // install-engines가 받을 엔진 (+ "apktool", "radare2")
+  "optional_engines": false,               // "all"에 apktool/radare2 포함
+  "archive_dir": "",                       // 오프라인 설치용 미리 받은 릴리스 파일
+  "router": { "allow": [], "deny": [] },   // false면 자동 라우팅 끔
   "use_wsl": false, "wsl_distro": "Ubuntu",
   "rea_command": "",                       // 전역 설치면 "rea"
-  "report": { "format": "html", "dir": "rea-reports" },
+  "report": { "format": "html", "dir": "rea-reports", "theme": "violet" },
   "env": { "REA_GHIDRA_STARTUP_TIMEOUT_MS": "600000" }
 }
 ```
 
 | 키 | 타입 | 기본값 | 비고 |
 |---|---|---|---|
-| `engines` | string[] | `["ghidra","jadx","apt"]` | `apt` = radare2, binwalk, tshark, apktool, binutils, gdb |
+| `engines` | string[] | `["all"]` | `apt` = radare2, binwalk, tshark, apktool, binutils, gdb(Linux); `apktool`, `radare2`는 모든 OS에서 선택 |
+| `optional_engines` | bool | `false` | `all`에 `apktool`·`radare2` 포함 |
+| `archive_dir` | 경로 | — | 미리 받은 릴리스 파일 디렉터리(`~/.rea-engines/archives/`도 항상 확인) |
+| `router` | bool / 객체 | `true` | `false`면 라우팅 끔; `{ "allow": [정규식], "deny": [정규식] }`로 조정; 프로젝트 `.rea-plugin.json`이 우선 |
 | `auto_engines` | bool | `true` | Ghidra가 없으면 백그라운드 설치(Windows·macOS·Linux) |
 | `jdk` | bool | `true` | 쓸 만한 JDK 21+가 없으면 Eclipse Temurin JDK 21을 `~/.rea-engines/jdk-21`에 다운로드 |
 | `java_home` | 경로 | 자동 | Ghidra/jadx용 JDK; 환경변수 `JAVA_HOME` → 이 값 → 내려받은 JDK 순 |
 | `engines_dir` | 경로 | `~/.rea-engines` | 자동 탐색 루트 |
-| `report.format` / `report.dir` | `html`·`md`·`both` / 경로 | `html` / `rea-reports` | `/rea:report` 기본값 |
+| `report.format` / `report.dir` / `report.theme` | `html`·`md`·`json`·`both`·`all` / 경로 / `violet`·`ocean`·`forest`·`amber`·`mono`·`contrast` | `html` / `rea-reports` / `violet` | `/rea:report` 기본값 |
 | `use_wsl` / `wsl_distro` | bool / string | `false` / `Ubuntu` | Windows 전용; 엔진 경로는 Linux 경로 |
 | `rea_version` | string | `6.7.0` | 고정 npm 버전 |
 | `env` | object | — | REA에 그대로 넘길 추가 변수(타임아웃, 스키마 프로필 등) |
 
-환경변수 대응: `REA_PLUGIN_CONFIG`, `REA_PLUGIN_ENGINES_DIR`, `REA_PLUGIN_ENGINES`,
-`REA_PLUGIN_AUTO_ENGINES=0|1`, `REA_PLUGIN_SKIP_JDK=1`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`, 그리고 REA 기본 변수
+환경변수 대응: `REA_PLUGIN_CONFIG`, `REA_PLUGIN_ENGINES_DIR`, `REA_PLUGIN_ARCHIVE_DIR`, `REA_PLUGIN_ENGINES`,
+`REA_PLUGIN_OPTIONAL_ENGINES=1`, `REA_PLUGIN_AUTO_ENGINES=0|1`, `REA_PLUGIN_SKIP_JDK=1`, `REA_PLUGIN_ROUTER=0`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`, 그리고 REA 기본 변수
 (`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `REA_KUNA_COMMAND`, `REA_IDA_MCP_CONFIG`).
 
 ## 📊 검증 수치
@@ -246,6 +257,8 @@ Anthropic 클라우드 컨테이너(Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21)에서 �
 | 빈 디렉터리에서 `install-engines.sh` | **1분 46초** (Ghidra 570 MB 다운로드 + SHA-256 + 압축 해제, jadx, apt 도구) |
 | 빈 디렉터리에서 `install-engines.cjs` (Linux x64, 시스템 Java 없음) | JDK 21(207 MB) + jadx: **약 15초**; Ghidra 12.1.4(570 MB) 다운로드 + SHA-256 + 해제: **약 30초**; 이후 REA doctor가 내려받은 JDK로 `ghidra-java … accepted a 64-bit full JDK 21` 보고 |
 | `ensure-engines.cjs` (SessionStart 훅) | 엔진이 있거나 설치 중이면 **0.2초** |
+| `install-engines.cjs` 이어받기 / 오프라인 | apktool 5 MB 부분 파일을 **1초 안에** 이어받아 검증; `archives/`의 릴리스 파일은 네트워크 없이 사용 |
+| `rea-router.cjs` (UserPromptSubmit 훅) | **약 40ms**, CI에서 라우팅 케이스 8/8 |
 | `rea doctor` | ghidra 12.1.4 `available=true`, jadx `available=true` |
 | 작은 ELF Ghidra 디컴파일 | 호출당 ≈ 20초 |
 | 런처 기동 → `tools/list` | 207 툴, 1초 미만 |
@@ -271,7 +284,9 @@ scripts/
   rea-config.example.json
 desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1  (Claude Desktop .mcpb)
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
-commands/              analyze · report · doctor · capabilities · install-engines
+commands/              analyze · report · doctor · capabilities · install-engines · why
+docs/STABILITY.md      1.x에서 유지되는 것: 설정 키, ~/.rea-engines 레이아웃, CLI 플래그, 파일 스키마
+.github/workflows/     ci.yml (3-OS selftest) · release.yml (v* 태그에 3-OS 서명 .mcpb)
 tests/fixtures/        소형 REA evidence 샘플
 remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/ · README
 .github/workflows/     ci.yml
@@ -306,35 +321,6 @@ Windows·macOS·Linux에서 이를 실행합니다.
 **이미 `npx rea-agents setup`을 돌렸는데요.** 클라이언트당 등록은 하나만 남기세요. 아니면 `rea` 서버가 둘 뜹니다.
 
 **리포트 내용은 믿어도 되나요?** 아니요. 심볼 이름, 경로, 디컴파일 코드는 분석 대상에서 나온 것이고 리포트 상단에도 그렇게 적혀 있습니다. 명령이 아니라 데이터로 다루세요.
-
-## 🗺️ 로드맵
-
-**완료**
-
-- [x] 원격 어플라이언스가 설치된 REA가 네이티브 `rea mcp --http`를 지원하면(REA `main`) 자동 선택; npm 6.7.0에선 supergateway 브리지
-- [x] `.mcpb` 데스크톱 확장 빌드(`desktop/build-mcpb.sh` / `.ps1`) — Linux 번들은 여기서 빌드·부팅 확인; Windows/macOS는 해당 OS에서 빌드
-- [x] 원격 어플라이언스용 OAuth 2.1 게이트웨이(`remote/oauth-gateway`, `docker-compose.oauth.yml`) — 실제 REA 브리지 상대로 검증
-- [x] evidence diff(`/rea:report --diff`)
-- [x] Go, Rust, Flutter/Dart, WebAssembly 플레이북
-- [x] **0.6.0** Windows·macOS·Linux 무설정 설치: SessionStart 훅 + `install-engines.cjs`가 호스트 OS/CPU에 맞는 JDK 21(필요 시)·Ghidra 12.1.4·jadx를 백그라운드로 설치; 런처가 내려받은 JDK를 `JAVA_HOME`으로 내보냄; 배타 설치 락; `launch-rea.cjs doctor`
-- [x] **0.6.0** REA 기본 사용: 리버스 엔지니어링 프롬프트(영/한)를 REA 툴과 맞는 플레이북으로 보내는 `UserPromptSubmit` 라우터(엔진 상태 포함)
-
-**다음 (0.7)** — 모든 OS에서 첫 분석이 매끄럽게
-
-- [ ] Windows 11 x64·macOS(Apple Silicon + Intel) 실기에서 설치기 검증 — CI는 dry-run 계획만 확인; 소요 시간을 *검증된 수치*에 기록
-- [ ] `/rea:doctor` 자가 복구: 반쯤 풀린 Ghidra나 `javac` 없는 JDK를 감지해 정확한 `install-engines.cjs --force --only …` 명령 제시
-- [ ] 느리거나 불안정한 회선용 Ghidra 이어받기(HTTP range); 미러/오프라인 모드(`REA_PLUGIN_ARCHIVE_DIR`에 미리 받은 zip, 폐쇄망용)
-- [ ] 실사용 기반 라우터 튜닝: 끄기(`"router": false`), 프로젝트별 허용/거부 패턴, 왜 라우팅됐는지(안 됐는지) 설명하는 `/rea:why`
-- [ ] Windows: Linux 전용 도구 요청 시 WSL 자동 프로비저닝(`wsl --install -d Ubuntu` + `install-engines.sh`) 옵션
-
-**이후 (0.8 → 1.0)**
-
-- [ ] GitHub Actions 매트릭스(win32 / darwin / linux)로 서명된 `.mcpb` 릴리스 — 설치기를 번들해 Claude Desktop 사용자도 같은 무설정 흐름
-- [ ] 엔진 버전 정책: 고정 + 검증된 업그레이드 경로(`install-engines.cjs --upgrade`), Ghidra 12.2 / jadx-headless-mcp 0.8 출시 시 체크섬은 한 곳(`rea-engines-lib.cjs`)에서 갱신
-- [ ] 같은 자동 설치 뒤에 선택 엔진 추가: Windows/macOS용 radare2·apktool; Kuna/IDA는 계속 사용자 제공
-- [ ] 리포트 테마와 후속 도구용 JSON 내보내기; 머신 간 `/rea:report --diff` 비교가 가능한 evidence 번들
-- [ ] claude.ai 자체 커넥터 클라이언트로 OAuth 게이트웨이 검증(공개 호스트 필요)
-- [ ] 1.0: `~/.rea-plugin.json` 키와 `~/.rea-engines` 레이아웃의 안정성 보장 문서화
 
 ## 🤝 기여하기
 

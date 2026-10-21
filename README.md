@@ -150,16 +150,20 @@ Add `https://<tunnel>/<REA_PATH_SECRET>/mcp` under claude.ai → Settings → Co
 | | |
 |---|---|
 | 🌍 **Runs anywhere** | One universal launcher (`scripts/launch-rea.cjs`) serves Claude Code, Claude Desktop, claude.ai cloud sessions and Docker. |
-| ⚙️ **Self-installing engines, every OS** | On the first session the plugin installs JDK 21 (when none is usable), Ghidra 12.1.4 (SHA-256 verified) and jadx-headless-mcp 0.7.1 for your OS and CPU — Windows x64, macOS arm64/x64, Linux x64/arm64 — in the background, plus the apt toolset on Linux. Selectable per engine, idempotent, one shared `~/.rea-engines`. |
-| 🧲 **REA by default for reverse engineering** | A `UserPromptSubmit` hook (`scripts/rea-router.cjs`, ~40 ms) recognises reverse-engineering requests — "reverse engineer", "decompile", 디컴파일, 리버싱, or a binary/APK/firmware file plus an analysis verb — and tells Claude to use the REA tools and the matching playbook, with the current engine status. Plain source-code questions are untouched. |
+| ⚙️ **Self-installing engines, every OS** | On the first session the plugin installs JDK 21 (when none is usable), Ghidra 12.1.4 (SHA-256 verified) and jadx-headless-mcp 0.7.1 for your OS and CPU — Windows x64, macOS arm64/x64, Linux x64/arm64 — in the background, plus the apt toolset on Linux and, on request, apktool and radare2. Selectable per engine, idempotent, one shared `~/.rea-engines`. |
+| 🩺 **Self-repair** | `/rea:doctor` validates what is on disk — a half-extracted Ghidra, a JRE without `javac`, a truncated jar, an older pin — and prints the exact `install-engines.cjs --force --only …` / `--upgrade` command that fixes it. |
+| 📡 **Resumable, offline-capable downloads** | Interrupted downloads resume (`curl -C -` / HTTP Range). Drop the release files into `~/.rea-engines/archives/` (or `REA_PLUGIN_ARCHIVE_DIR`) and air-gapped hosts install without any network; every archive is still SHA-256 checked. |
+| 📌 **Pinned versions, verified upgrades** | Versions and checksums live in one place (`rea-engines-lib.cjs`); `install-engines.cjs --upgrade` moves an existing install to the pins and removes the old copies only after the new ones verify. |
+| 🧲 **REA by default for reverse engineering** | A `UserPromptSubmit` hook (`scripts/rea-router.cjs`, ~40 ms) recognises reverse-engineering requests — "reverse engineer", "decompile", 디컴파일, 리버싱, or a binary/APK/firmware file plus an analysis verb — and tells Claude to use the REA tools and the matching playbook, with the current engine status. Plain source-code questions are untouched. Tune it with `"router": false` or allow/deny regexes (per user or per project); `/rea:why` explains any decision. |
 | 🧭 **Guided workflows** | `/rea:analyze` picks a playbook per target type (native binary, APK, Electron/JS, firmware, web bundle) and collects evidence as it goes. |
-| 📄 **Shareable reports** | `/rea:report` renders REA evidence into a self-contained HTML (light/dark) or Markdown report — decompiled code, overviews, provider, confidence, limitations. Zero dependencies. |
-| 🔀 **Evidence diffs** | `/rea:report --diff <before> <after>` compares two builds: changed overview fields, added/removed procedures, strings and segments, and a line diff of decompiled code. |
-| 🖥️ **One-click desktop extension** | `desktop/build-mcpb.sh` / `.ps1` bundles REA into a `.mcpb` with a settings panel for engine paths; uses Claude Desktop's built-in Node, no install needed. |
+| 📄 **Shareable reports** | `/rea:report` renders REA evidence into a self-contained HTML (light/dark, six themes), Markdown or JSON report — decompiled code, overviews, provider, confidence, limitations. Zero dependencies. |
+| 🔀 **Evidence diffs & bundles** | `/rea:report --diff <before> <after>` compares two builds: changed overview fields, added/removed procedures, strings and segments, and a line diff of decompiled code. `--bundle` packs evidence into one portable `*.rea-bundle.json` that `--diff` accepts from any machine. |
+| 🖥️ **One-click desktop extension** | `desktop/build-mcpb.sh` / `.ps1` bundles REA, the launcher and the installer into a `.mcpb` with a settings panel for engine paths; uses Claude Desktop's built-in Node, no install needed. Tagged releases build and sign it for Windows, macOS and Linux (`.github/workflows/release.yml`). |
 | 🔐 **OAuth-protected remote** | `remote/docker-compose.oauth.yml` adds a dependency-free OAuth 2.1 gateway (DCR + PKCE + login page) so the appliance can be a claude.ai custom connector without a path secret. |
 | 🎛️ **User-configurable** | `~/.rea-plugin.json`: engine paths, which engines to install, report format/dir, WSL mode, REA version, env passthrough. Blank values are ignored. |
 | 🧪 **Tested on 3 OSes** | `scripts/selftest.mjs` runs on Windows, macOS and Linux in CI: manifest and hook shape, syntax, report/diff fixtures, launcher env handling, the installer's per-OS dry-run plan, the SessionStart hook's ready/missing/installing states, install-lock handling, and a live MCP smoke that boots the real server and asserts it serves tools. |
-| 🪟 **Windows-native** | `install-engines.ps1`, `.mcpb` build on Windows, npx without cmd.exe quoting, automatic `C:\` → `/mnt/c/` translation in WSL mode. No `userConfig` dependency, so Claude Desktop can start the server itself. |
+| 🪟 **Windows-native, WSL on demand** | Native installer with the built-in `tar.exe`, `.mcpb` build on Windows, npx without cmd.exe quoting, automatic `C:\` → `/mnt/c/` translation in WSL mode, and `install-engines.cjs --wsl` to provision the Linux engine set inside WSL when Linux-only tooling is needed. |
+| 📜 **Stability guarantees** | [docs/STABILITY.md](docs/STABILITY.md) lists the configuration keys, the `~/.rea-engines` layout, CLI flags and file schemas that 1.x keeps stable. |
 
 ## 🔍 How it works
 
@@ -192,11 +196,12 @@ flowchart LR
 | Command | What it does |
 |---|---|
 | `/rea:analyze <path> [goal]` | Guided investigation: detect target type, run the matching playbook, save every result to `./rea-evidence/*.json` |
-| `/rea:report [dir] [--format html\|md\|both]` | Build the shareable report from saved evidence (honours `report.*` in your config) |
-| `/rea:report --diff <before> <after>` | Diff two evidence sets (two builds of the same app) into a change report |
+| `/rea:report [dir] [--format html\|md\|json\|both\|all] [--theme …] [--bundle]` | Build the shareable report from saved evidence (honours `report.*` in your config); `--bundle` writes a portable evidence bundle |
+| `/rea:report --diff <before> <after>` | Diff two evidence sets or bundles (two builds of the same app, even from different machines) into a change report |
 | `/rea:doctor` | Is the MCP server healthy? Which engines are available, and the exact fix for missing ones |
 | `/rea:capabilities` | What REA can do *right now* on this host, grouped by target type |
-| `/rea:install-engines` | Engine installer for Windows, macOS and Linux (idempotent, selectable, `--dry-run`) |
+| `/rea:install-engines` | Engine installer for Windows, macOS and Linux (idempotent, selectable, `--dry-run`, `--upgrade`, `--wsl`, optional apktool/radare2) |
+| `/rea:why [prompt]` | Why a prompt was (or wasn't) routed to REA, and how to tune the router |
 
 | Skill | Purpose |
 |---|---|
@@ -218,28 +223,34 @@ flowchart LR
   "engines_dir": "",                       // default ~/.rea-engines
   "auto_engines": true,                    // background install on first use (all OSes)
   "jdk": true,                             // download JDK 21 when none is usable
-  "engines": ["ghidra", "jadx", "apt"],    // what install-engines fetches
+  "engines": ["ghidra", "jadx", "apt"],    // what install-engines fetches (+ "apktool", "radare2")
+  "optional_engines": false,               // let "all" include apktool/radare2
+  "archive_dir": "",                       // pre-downloaded release files for offline installs
+  "router": { "allow": [], "deny": [] },   // or false to turn automatic routing off
   "use_wsl": false, "wsl_distro": "Ubuntu",
   "rea_command": "",                       // e.g. "rea" for a global install
-  "report": { "format": "html", "dir": "rea-reports" },
+  "report": { "format": "html", "dir": "rea-reports", "theme": "violet" },
   "env": { "REA_GHIDRA_STARTUP_TIMEOUT_MS": "600000" }
 }
 ```
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
-| `engines` | string[] | `["ghidra","jadx","apt"]` | `apt` = radare2, binwalk, tshark, apktool, binutils, gdb |
+| `engines` | string[] | `["all"]` | `apt` = radare2, binwalk, tshark, apktool, binutils, gdb (Linux); `apktool`, `radare2` are optional on every OS |
+| `optional_engines` | bool | `false` | let `all` include `apktool` and `radare2` |
+| `archive_dir` | path | — | extra directory of pre-downloaded release files (also `~/.rea-engines/archives/`) |
+| `router` | bool / object | `true` | `false` turns routing off; `{ "allow": [regex], "deny": [regex] }` tunes it; a project `.rea-plugin.json` overrides |
 | `auto_engines` | bool | `true` | background install when Ghidra is missing (Windows, macOS, Linux) |
 | `jdk` | bool | `true` | download Eclipse Temurin JDK 21 into `~/.rea-engines/jdk-21` when no usable JDK 21+ is found |
 | `java_home` | path | auto | JDK for Ghidra/jadx; `JAVA_HOME` in the environment wins, then this, then the bundled JDK |
 | `engines_dir` | path | `~/.rea-engines` | auto-discovery root |
-| `report.format` / `report.dir` | `html`·`md`·`both` / path | `html` / `rea-reports` | defaults for `/rea:report` |
+| `report.format` / `report.dir` / `report.theme` | `html`·`md`·`json`·`both`·`all` / path / `violet`·`ocean`·`forest`·`amber`·`mono`·`contrast` | `html` / `rea-reports` / `violet` | defaults for `/rea:report` |
 | `use_wsl` / `wsl_distro` | bool / string | `false` / `Ubuntu` | Windows only; engine paths become Linux paths |
 | `rea_version` | string | `6.7.0` | pinned npm version |
 | `env` | object | — | extra variables passed to REA (timeouts, schema profiles…) |
 
-Environment equivalents: `REA_PLUGIN_CONFIG`, `REA_PLUGIN_ENGINES_DIR`, `REA_PLUGIN_ENGINES`,
-`REA_PLUGIN_AUTO_ENGINES=0|1`, `REA_PLUGIN_SKIP_JDK=1`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`,
+Environment equivalents: `REA_PLUGIN_CONFIG`, `REA_PLUGIN_ENGINES_DIR`, `REA_PLUGIN_ARCHIVE_DIR`, `REA_PLUGIN_ENGINES`,
+`REA_PLUGIN_OPTIONAL_ENGINES=1`, `REA_PLUGIN_AUTO_ENGINES=0|1`, `REA_PLUGIN_SKIP_JDK=1`, `REA_PLUGIN_ROUTER=0`, `REA_PLUGIN_USE_WSL=1`, `REA_PLUGIN_VERSION`,
 and the plain REA variables (`GHIDRA_INSTALL_DIR`, `REA_JADX_MCP_JAR`, `REA_KUNA_COMMAND`,
 `REA_IDA_MCP_CONFIG`, `JAVA_HOME`).
 
@@ -252,6 +263,8 @@ Measured in an Anthropic cloud container (Ubuntu 24.04, 2 vCPU, 8 GB, JDK 21):
 | `install-engines.sh` from empty dir | **1 min 46 s** (Ghidra 570 MB download + SHA-256 + unzip, jadx, apt tools) |
 | `install-engines.cjs` from empty dir (Linux x64, no system Java) | JDK 21 (207 MB) + jadx: **~15 s**; Ghidra 12.1.4 (570 MB) download + SHA-256 + extract: **~30 s**; REA doctor then reports `ghidra-java … accepted a 64-bit full JDK 21` from the bundled JDK |
 | `ensure-engines.cjs` (SessionStart hook) | **0.2 s** when engines are present or already installing |
+| `install-engines.cjs` resume / offline | a 5 MB partial of apktool resumed and verified in **< 1 s**; a release file in `archives/` is used with no network at all |
+| `rea-router.cjs` (UserPromptSubmit hook) | **~40 ms**, 8/8 routing cases in CI |
 | `rea doctor` | ghidra 12.1.4 `available=true`, jadx `available=true` |
 | Ghidra decompile, small ELF | ≈ 20 s per call |
 | Launcher boot → `tools/list` | 207 tools, < 1 s |
@@ -267,7 +280,7 @@ hooks/hooks.json       plugin hooks: SessionStart → ensure-engines.cjs, UserPr
 scripts/
   launch-rea.cjs       universal launcher (also `launch-rea.cjs doctor` with the server's env)
   ensure-engines.cjs   SessionStart hook: check engines → start background install → one status line
-  rea-router.cjs       UserPromptSubmit hook: reverse-engineering prompt → "use REA + this playbook" context
+  rea-router.cjs       UserPromptSubmit hook: reverse-engineering prompt → "use REA + this playbook" context (--why)
   install-engines.cjs  Windows/macOS/Linux installer (JDK 21, Ghidra, jadx) — what the hook/launcher run
   rea-engines-lib.cjs  shared: OS detection, config, engine/JDK discovery
   install-engines.sh   Linux/Docker installer (Ghidra, jadx, apt) — idempotent, selectable
@@ -278,7 +291,9 @@ scripts/
   rea-config.example.json
 desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1  (Claude Desktop .mcpb)
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
-commands/              analyze · report · doctor · capabilities · install-engines
+commands/              analyze · report · doctor · capabilities · install-engines · why
+docs/STABILITY.md      what 1.x keeps stable: config keys, ~/.rea-engines layout, CLI flags, file schemas
+.github/workflows/     ci.yml (3-OS selftest) · release.yml (3-OS signed .mcpb on v* tags)
 tests/fixtures/        small REA evidence samples
 remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/ · README
 .github/workflows/     ci.yml
@@ -313,35 +328,6 @@ macOS and Linux for every push.
 **I already ran `npx rea-agents setup`.** Keep only one registration per client, or you'll get two `rea` servers.
 
 **Is the report content trusted?** No. Symbol names, paths and decompiled code come from the analysed artifact; the report says so on top. Treat it as data, not instructions.
-
-## 🗺️ Roadmap
-
-**Done**
-
-- [x] Remote appliance auto-selects native `rea mcp --http` when the installed REA supports it (REA `main`); bridges with supergateway on npm 6.7.0
-- [x] `.mcpb` desktop-extension build (`desktop/build-mcpb.sh` / `.ps1`) — Linux bundle built and booted here; build on Windows/macOS for those platforms
-- [x] OAuth 2.1 gateway for the remote appliance (`remote/oauth-gateway`, `docker-compose.oauth.yml`) — verified against a live REA bridge
-- [x] Evidence diffs (`/rea:report --diff`)
-- [x] Playbooks for Go, Rust, Flutter/Dart and WebAssembly
-- [x] **0.6.0** Zero-setup install on Windows, macOS and Linux: SessionStart hook + `install-engines.cjs` fetch JDK 21 (when needed), Ghidra 12.1.4 and jadx for the host OS/CPU in the background; launcher exports the bundled JDK; exclusive install lock; `launch-rea.cjs doctor`
-- [x] **0.6.0** REA by default: `UserPromptSubmit` router that steers reverse-engineering prompts (EN/KO) to the REA tools and the right playbook, with engine status
-
-**Next (0.7)** — make the first analysis flawless on every OS
-
-- [ ] Real-machine verification of the installer on Windows 11 x64 and macOS (Apple Silicon + Intel) — CI covers only the dry-run plan; record timings in *Verified numbers*
-- [ ] `/rea:doctor` self-repair: detect a half-extracted Ghidra or a JDK without `javac` and offer the exact `install-engines.cjs --force --only …` command
-- [ ] Resumable downloads (HTTP range) for Ghidra on slow or flaky connections; mirror/offline mode (`REA_PLUGIN_ARCHIVE_DIR` with pre-downloaded zips for air-gapped hosts)
-- [ ] Router tuning from real usage: opt-out (`"router": false`), per-project allow/deny patterns, and a `/rea:why` command that explains why a prompt was (not) routed
-- [ ] Windows: optional WSL auto-provisioning (`wsl --install -d Ubuntu` + `install-engines.sh`) when Linux-only tooling is requested
-
-**Later (0.8 → 1.0)**
-
-- [ ] Signed `.mcpb` releases via GitHub Actions matrix (win32 / darwin / linux), bundling the installer so Claude Desktop users get the same zero-setup flow
-- [ ] Engine version policy: pin + verified upgrade path (`install-engines.cjs --upgrade`) when Ghidra 12.2 / jadx-headless-mcp 0.8 ship, with checksum updates in one place (`rea-engines-lib.cjs`)
-- [ ] Optional engines behind the same auto-install: radare2 and apktool builds for Windows/macOS; Kuna/IDA remain caller-supplied
-- [ ] Report themes and a JSON export for downstream tooling; evidence bundles that `/rea:report --diff` can compare across machines
-- [ ] Verify the OAuth gateway against claude.ai's own connector client (needs a public host)
-- [ ] 1.0: documented stability guarantees for `~/.rea-plugin.json` keys and the `~/.rea-engines` layout
 
 ## 🤝 Contributing
 

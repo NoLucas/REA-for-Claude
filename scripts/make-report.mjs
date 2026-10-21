@@ -9,8 +9,15 @@
  *
  * Options:
  *   --out <path>        Output path or directory (default: ./rea-reports)
- *   --format <fmt>      html | md | both            (default: html)
+ *   --format <fmt>      html | md | json | both (html+md) | all   (default: html)
+ *                       json = normalised evidence model for downstream tooling
+ *   --theme <name>      HTML theme: violet (default) | ocean | forest | amber | mono | contrast
+ *                       (also "report": {"theme": ...} in ~/.rea-plugin.json)
  *   --title <text>      Report title                (default: derived from targets)
+ *   --bundle [file]     Also write a portable evidence bundle (*.rea-bundle.json): every
+ *                       evidence object + manifest (host, time, digests). A bundle is a valid
+ *                       input anywhere a file or directory is accepted, including --diff, so
+ *                       two machines can exchange bundles and diff them.
  *   --stdin             Read one evidence JSON object (or array) from stdin
  *   -h, --help
  *
@@ -25,30 +32,65 @@
  * content, exactly as REA marks them.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
-const HELP = `make-report.mjs — REA evidence -> HTML/Markdown report
-Usage: node scripts/make-report.mjs <file-or-dir>... [--out P] [--format html|md|both] [--title T] [--stdin]
-       node scripts/make-report.mjs --diff <before-dir> <after-dir> [--out P] [--format ...] [--title T]
+const requireCjs = createRequire(import.meta.url);
+let pluginConfig = {};
+try { pluginConfig = requireCjs('./rea-engines-lib.cjs').readConfig() || {}; } catch { pluginConfig = {}; }
+const reportDefaults = (pluginConfig && pluginConfig.report) || {};
+
+/* ------------------------------- themes ------------------------------ */
+// Each theme: light + dark variable sets. Diff pages add the add/del colours.
+const THEMES = {
+  violet:   { light: { bg: '#fbfbfa', fg: '#1a1a18', muted: '#6b6b66', card: '#fff', line: '#e6e6e2', accent: '#7b4bd8', code: '#f4f3f0', tag: '#efeaf9', addbg: '#e6f6ea', delbg: '#fdeaea', add: '#1b7f3b', del: '#b4232c' },
+              dark:  { bg: '#17171a', fg: '#e9e9ec', muted: '#9a9aa2', card: '#1f1f23', line: '#30303a', accent: '#b79bff', code: '#111114', tag: '#2a2440', addbg: '#12301c', delbg: '#3a1518', add: '#7fd49a', del: '#ff8a8a' } },
+  ocean:    { light: { bg: '#f7fafc', fg: '#14202b', muted: '#5f7384', card: '#fff', line: '#dbe4ec', accent: '#0b6bcb', code: '#eef3f7', tag: '#e3eefb', addbg: '#e4f5ec', delbg: '#fdeaea', add: '#157a45', del: '#b4232c' },
+              dark:  { bg: '#0f1720', fg: '#e3ebf2', muted: '#8fa3b4', card: '#17222d', line: '#273645', accent: '#6cb1ff', code: '#0b121a', tag: '#1c2f44', addbg: '#11301f', delbg: '#3a1518', add: '#7fd49a', del: '#ff8a8a' } },
+  forest:   { light: { bg: '#f8faf6', fg: '#182018', muted: '#5f6f5f', card: '#fff', line: '#dde5da', accent: '#2f7d3b', code: '#eef3ec', tag: '#e3f1e3', addbg: '#e2f3e5', delbg: '#fdeaea', add: '#1b7f3b', del: '#b4232c' },
+              dark:  { bg: '#121712', fg: '#e5ebe4', muted: '#93a292', card: '#1a211a', line: '#2a362a', accent: '#8fd49a', code: '#0d110d', tag: '#1f3322', addbg: '#13301c', delbg: '#3a1518', add: '#7fd49a', del: '#ff8a8a' } },
+  amber:    { light: { bg: '#fcfaf5', fg: '#231d12', muted: '#7a6d58', card: '#fff', line: '#ece4d4', accent: '#b4600a', code: '#f6f1e6', tag: '#f8ecd8', addbg: '#e6f6ea', delbg: '#fdeaea', add: '#1b7f3b', del: '#b4232c' },
+              dark:  { bg: '#1a160f', fg: '#efe8dc', muted: '#a89a84', card: '#241e14', line: '#3a3124', accent: '#f0a84a', code: '#120f0a', tag: '#3a2c18', addbg: '#12301c', delbg: '#3a1518', add: '#7fd49a', del: '#ff8a8a' } },
+  mono:     { light: { bg: '#fafafa', fg: '#111', muted: '#666', card: '#fff', line: '#e2e2e2', accent: '#111', code: '#f2f2f2', tag: '#ececec', addbg: '#ededed', delbg: '#e4e4e4', add: '#111', del: '#555' },
+              dark:  { bg: '#121212', fg: '#eaeaea', muted: '#9a9a9a', card: '#1b1b1b', line: '#2e2e2e', accent: '#eaeaea', code: '#0c0c0c', tag: '#262626', addbg: '#232323', delbg: '#1a1a1a', add: '#eaeaea', del: '#9a9a9a' } },
+  contrast: { light: { bg: '#fff', fg: '#000', muted: '#333', card: '#fff', line: '#000', accent: '#0000d6', code: '#f0f0f0', tag: '#e0e0ff', addbg: '#d6ffd6', delbg: '#ffd6d6', add: '#005c00', del: '#9b0000' },
+              dark:  { bg: '#000', fg: '#fff', muted: '#ddd', card: '#000', line: '#fff', accent: '#8ab4ff', code: '#111', tag: '#1a1a4a', addbg: '#0b3a0b', delbg: '#4a0b0b', add: '#9fff9f', del: '#ff9f9f' } },
+};
+function themeCss(name) {
+  const t = THEMES[name] || THEMES.violet;
+  const vars = (o) => Object.entries(o).map(([k, v]) => `--${k}:${v}`).join(';');
+  return `:root{${vars(t.light)}}\n@media (prefers-color-scheme:dark){:root:not([data-theme=light]){${vars(t.dark)}}}\n:root[data-theme=dark]{${vars(t.dark)}}`;
+}
+
+const HELP = `make-report.mjs — REA evidence -> HTML/Markdown/JSON report (+ evidence bundles)
+Usage: node scripts/make-report.mjs <file-dir-or-bundle>... [--out P] [--format html|md|json|both|all] [--theme T] [--title T] [--bundle [file]] [--stdin]
+       node scripts/make-report.mjs --diff <before> <after> [--out P] [--format ...] [--theme T] [--title T]
+       (<before>/<after> may be evidence directories or *.rea-bundle.json files from any machine)
 
 --diff compares two evidence sets (e.g. two builds of the same app): per operation it
 shows changed overview fields, added/removed procedures, strings and segments, and a
 line diff of decompiled pseudo-code. Evidence is matched by operation + procedure/target.`;
 
 function parseArgs(argv) {
-  const o = { inputs: [], out: 'rea-reports', format: 'html', title: null, stdin: false, diff: null };
+  const o = { inputs: [], out: reportDefaults.dir || 'rea-reports', format: reportDefaults.format || 'html', theme: reportDefaults.theme || 'violet', title: null, stdin: false, diff: null, bundle: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h' || a === '--help') { console.log(HELP); process.exit(0); }
     else if (a === '--out') o.out = argv[++i];
     else if (a === '--format') o.format = argv[++i];
     else if (a === '--title') o.title = argv[++i];
+    else if (a === '--theme') o.theme = argv[++i];
+    else if (a === '--bundle') { o.bundle = (argv[i + 1] && !argv[i + 1].startsWith('--')) ? argv[++i] : true; }
     else if (a === '--stdin') o.stdin = true;
     else if (a === '--diff') { o.diff = [argv[++i], argv[++i]]; }
     else if (a.startsWith('--')) { console.error(`Unknown option: ${a}`); process.exit(2); }
     else o.inputs.push(a);
   }
-  if (!['html', 'md', 'both'].includes(o.format)) { console.error(`--format must be html|md|both`); process.exit(2); }
+  if (!['html', 'md', 'json', 'both', 'all'].includes(o.format)) { console.error(`--format must be html|md|json|both|all`); process.exit(2); }
+  if (!THEMES[o.theme]) { console.error(`--theme must be one of ${Object.keys(THEMES).join('|')}`); process.exit(2); }
   if (o.diff && (!o.diff[0] || !o.diff[1])) { console.error('--diff needs <before> <after>'); process.exit(2); }
   return o;
 }
@@ -71,6 +113,8 @@ function* evidenceFrom(raw, origin) {
   let data;
   try { data = JSON.parse(raw); } catch (e) { console.error(`skip (bad JSON): ${origin}: ${e.message}`); return; }
   const unwrap = (d) => (d && typeof d === 'object' && d.result && !d.evidence_id && !d.subject) ? d.result : d;
+  // Evidence bundle written by --bundle: { rea_bundle: {...manifest}, evidence: [...] }
+  if (data && typeof data === 'object' && data.rea_bundle && Array.isArray(data.evidence)) data = data.evidence;
   const items = Array.isArray(data) ? data : [data];
   for (let item of items) {
     item = unwrap(item);
@@ -186,7 +230,7 @@ function toMarkdown(model, title) {
 }
 
 /* ------------------------------- HTML ------------------------------- */
-function toHtml(model, title) {
+function toHtml(model, title, theme) {
   const sections = model.map((t) => {
     const s = t.subject;
     const meta = [
@@ -214,9 +258,7 @@ function toHtml(model, title) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
 <style>
-:root{--bg:#fbfbfa;--fg:#1a1a18;--muted:#6b6b66;--card:#fff;--line:#e6e6e2;--accent:#7b4bd8;--code:#f4f3f0;--tag:#efeaf9}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#17171a;--fg:#e9e9ec;--muted:#9a9aa2;--card:#1f1f23;--line:#30303a;--accent:#b79bff;--code:#111114;--tag:#2a2440}}
-:root[data-theme=dark]{--bg:#17171a;--fg:#e9e9ec;--muted:#9a9aa2;--card:#1f1f23;--line:#30303a;--accent:#b79bff;--code:#111114;--tag:#2a2440}
+${themeCss(theme)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:880px;margin:0 auto;padding:40px 16px 80px}
 header h1{font-size:26px;margin:0 0 4px}header p{color:var(--muted);margin:0 0 8px}
@@ -331,7 +373,7 @@ function diffToMarkdown(m, title) {
   return L.join('\n');
 }
 
-function diffToHtml(m, title) {
+function diffToHtml(m, title, theme) {
   const row = (e) => {
     const d = e.diff || {};
     let body = '';
@@ -345,9 +387,7 @@ function diffToHtml(m, title) {
   const s = m.summary;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
 <style>
-:root{--bg:#fbfbfa;--fg:#1a1a18;--muted:#6b6b66;--card:#fff;--line:#e6e6e2;--accent:#7b4bd8;--code:#f4f3f0;--addbg:#e6f6ea;--delbg:#fdeaea;--add:#1b7f3b;--del:#b4232c}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#17171a;--fg:#e9e9ec;--muted:#9a9aa2;--card:#1f1f23;--line:#30303a;--accent:#b79bff;--code:#111114;--addbg:#12301c;--delbg:#3a1518;--add:#7fd49a;--del:#ff8a8a}}
-:root[data-theme=dark]{--bg:#17171a;--fg:#e9e9ec;--muted:#9a9aa2;--card:#1f1f23;--line:#30303a;--accent:#b79bff;--code:#111114;--addbg:#12301c;--delbg:#3a1518;--add:#7fd49a;--del:#ff8a8a}
+${themeCss(theme)}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:960px;margin:0 auto;padding:40px 16px 80px}h1{font-size:26px;margin:0 0 4px}.muted{color:var(--muted)}
 .subjects{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.subjects div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px}
@@ -369,6 +409,51 @@ ${m.entries.filter((e) => e.status !== 'same').map(row).join('') || '<p class="m
 </div></body></html>`;
 }
 
+/* ------------------------------ JSON / bundle ------------------------------ */
+function toJsonModel(model, title) {
+  return {
+    schema: 'rea-for-claude/report@1',
+    generated: new Date().toISOString(),
+    title,
+    targets: model.map((t) => ({
+      key: t.key,
+      subject: t.subject,
+      evidence: t.items.map((ev) => ({
+        evidence_id: ev.evidence_id ?? null,
+        operation: ev.operation ?? ev.predicate_type ?? null,
+        provider: ev.provider ?? null,
+        confidence: ev.confidence ?? null,
+        limitations: asList(ev.limitations),
+        result: renderResult(ev),
+        raw: ev,
+      })),
+    })),
+  };
+}
+function diffToJson(m, title) {
+  return { schema: 'rea-for-claude/diff@1', generated: new Date().toISOString(), title, before: m.before, after: m.after, summary: m.summary, entries: m.entries };
+}
+function writeBundle(evidences, file) {
+  const digest = (ev) => crypto.createHash('sha256').update(JSON.stringify(ev)).digest('hex');
+  const bundle = {
+    rea_bundle: {
+      schema: 'rea-for-claude/bundle@1',
+      created: new Date().toISOString(),
+      host: { platform: process.platform, arch: process.arch, hostname: os.hostname(), node: process.version },
+      count: evidences.length,
+      digests: evidences.map(digest),
+    },
+    evidence: evidences,
+  };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(bundle, null, 2));
+  return file;
+}
+function bundlePath(o, fileStem) {
+  if (typeof o.bundle === 'string') return /\.json$/i.test(o.bundle) ? o.bundle : path.join(o.bundle, `${path.basename(fileStem)}.rea-bundle.json`);
+  return `${fileStem}.rea-bundle.json`;
+}
+
 function runDiff(o) {
   const load = (dir) => { const out = []; for (const f of collectFiles([dir])) { try { for (const ev of evidenceFrom(fs.readFileSync(f, 'utf8'), f)) out.push(ev); } catch (e) { console.error(`skip: ${f}: ${e.message}`); } } return out; };
   const before = load(o.diff[0]), after = load(o.diff[1]);
@@ -381,9 +466,11 @@ function runDiff(o) {
   else { outDir = o.out; fileStem = path.join(outDir, `diff-${stamp}`); }
   fs.mkdirSync(outDir, { recursive: true });
   const written = [];
-  if (o.format === 'html' || o.format === 'both') { const p = `${fileStem}.html`; fs.writeFileSync(p, diffToHtml(m, title)); written.push(p); }
-  if (o.format === 'md' || o.format === 'both') { const p = `${fileStem}.md`; fs.writeFileSync(p, diffToMarkdown(m, title)); written.push(p); }
-  console.log(JSON.stringify({ ok: true, mode: 'diff', ...m.summary, written }, null, 2));
+  const want = (f) => o.format === f || o.format === 'all' || (o.format === 'both' && (f === 'html' || f === 'md'));
+  if (want('html')) { const p = `${fileStem}.html`; fs.writeFileSync(p, diffToHtml(m, title, o.theme)); written.push(p); }
+  if (want('md')) { const p = `${fileStem}.md`; fs.writeFileSync(p, diffToMarkdown(m, title)); written.push(p); }
+  if (want('json')) { const p = `${fileStem}.json`; fs.writeFileSync(p, JSON.stringify(diffToJson(m, title), null, 2)); written.push(p); }
+  console.log(JSON.stringify({ ok: true, mode: 'diff', theme: o.theme, ...m.summary, written }, null, 2));
 }
 
 function main() {
@@ -413,10 +500,13 @@ function main() {
   fs.mkdirSync(outDir, { recursive: true });
 
   const written = [];
-  if (o.format === 'html' || o.format === 'both') { const p = `${fileStem}.html`; fs.writeFileSync(p, toHtml(model, title)); written.push(p); }
-  if (o.format === 'md' || o.format === 'both') { const p = `${fileStem}.md`; fs.writeFileSync(p, toMarkdown(model, title)); written.push(p); }
+  const want = (f) => o.format === f || o.format === 'all' || (o.format === 'both' && (f === 'html' || f === 'md'));
+  if (want('html')) { const p = `${fileStem}.html`; fs.writeFileSync(p, toHtml(model, title, o.theme)); written.push(p); }
+  if (want('md')) { const p = `${fileStem}.md`; fs.writeFileSync(p, toMarkdown(model, title)); written.push(p); }
+  if (want('json')) { const p = `${fileStem}.json`; fs.writeFileSync(p, JSON.stringify(toJsonModel(model, title), null, 2)); written.push(p); }
+  if (o.bundle) written.push(writeBundle(evidences, bundlePath(o, fileStem)));
 
-  console.log(JSON.stringify({ ok: true, targets: model.length, evidence: evidences.length, written }, null, 2));
+  console.log(JSON.stringify({ ok: true, targets: model.length, evidence: evidences.length, theme: o.theme, written }, null, 2));
 }
 
 main();

@@ -5,9 +5,13 @@ allowed-tools: Bash(node *launch-rea.cjs* doctor*), Bash(node *ensure-engines.cj
 
 Report REA's readiness in plain language.
 
-1. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-engines.cjs" --status`. It prints one line:
-   engines ready / install in progress (with the log path) / engines missing. It never
-   starts an install.
+1. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-engines.cjs" --status`. It prints a
+   one-line verdict (engines ready / install in progress with the log path / engines
+   missing / engines present but broken) followed by a per-engine table (ghidra, jdk, jadx,
+   and apktool/radare2 when installed or selected). Each broken row ends with the exact
+   repair command — e.g. a half-extracted Ghidra → `install-engines.cjs --force --only ghidra`,
+   a JRE without `javac` → `--force --only jdk`, an older pinned version → `--upgrade`.
+   Offer to run that command; it never starts an install by itself.
 2. If an install is in progress, show `tail -5 ~/.rea-engines/install.log` (Windows:
    `type %USERPROFILE%\.rea-engines\install.log`), estimate the remaining time from the
    log (Ghidra is the long download, ~570 MB) and say that REA's analysis tools answer

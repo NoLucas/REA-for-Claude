@@ -13,19 +13,34 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-// Pinned engine versions. Keep in sync with install-engines.sh / install-engines.ps1.
+// Engine version policy — the ONE place versions and checksums live. install-engines.sh /
+// install-engines.ps1 carry copies for shell-only hosts; bump all three together.
+// `install-engines.cjs --upgrade` moves an existing ~/.rea-engines to these versions.
 const VERSIONS = {
   rea: '6.7.0',
   ghidra: '12.1.4',
   ghidraZip: 'ghidra_12.1.4_PUBLIC_20260921.zip',
   ghidraSha256: 'ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db',
   ghidraUrl: 'https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip',
+  jadx: '0.7.1',
   jadxJar: 'jadx-headless-mcp-0.7.1-all.jar',
   jadxUrl: 'https://github.com/1013503897/jadx-headless-mcp/releases/download/v0.7.1/jadx-headless-mcp-0.7.1-all.jar',
   jdkMajor: 21,
+  // Optional engines (selectable with "engines": [..., "apktool", "radare2"]).
+  apktool: '3.0.3',
+  apktoolJar: 'apktool_3.0.3.jar',
+  apktoolSha256: 'dbf930b076c6b9be08d57c449cacefc3bdd6b71ebd59b3066fc0e1f5b14f9423',
+  apktoolUrl: 'https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar',
+  radare2: '6.2.4',
+  radare2Win: {
+    x64: { zip: 'radare2-6.2.4-w64.zip', sha256: 'aa3454fd89e8a4ead450caff35a1d3919065744e7091540d4913a9487241799d', dir: 'radare2-6.2.4-w64' },
+    arm64: { zip: 'radare2-6.2.4-w64-arm64.zip', sha256: '6566f55452ebb98adf15b43fc5328ba2467d21597ff59db35f0544db161a2f14', dir: 'radare2-6.2.4-w64-arm64' },
+  },
+  radare2UrlBase: 'https://github.com/radareorg/radare2/releases/download/6.2.4/',
 };
 const GHIDRA_DIR_NAME = `ghidra_${VERSIONS.ghidra}_PUBLIC`;
 const JDK_DIR_NAME = `jdk-${VERSIONS.jdkMajor}`;
+const RADARE2_DIR_NAME = 'radare2';
 
 const clean = (v) =>
   typeof v === 'string' && v.trim() !== '' && !v.trim().startsWith('${') ? v.trim() : undefined;
@@ -112,8 +127,10 @@ function discover(dir) {
   } catch {
     return found;
   }
-  const ghidra = entries.filter((e) => /^ghidra_12\.1\.\d+_PUBLIC$/.test(e)).sort().pop();
-  if (ghidra && fs.existsSync(path.join(dir, ghidra, 'support'))) found.GHIDRA_INSTALL_DIR = path.join(dir, ghidra);
+  // Any Ghidra release layout; the pinned one wins, otherwise the highest version present.
+  const ghidras = entries.filter((e) => /^ghidra_\d+\.\d+(?:\.\d+)?_PUBLIC$/.test(e) && fs.existsSync(path.join(dir, e, 'support')));
+  const ghidra = ghidras.includes(GHIDRA_DIR_NAME) ? GHIDRA_DIR_NAME : ghidras.sort(compareVersionDirs).pop();
+  if (ghidra) found.GHIDRA_INSTALL_DIR = path.join(dir, ghidra);
   const jadx = entries.filter((e) => /^jadx-headless-mcp-.*-all\.jar$/.test(e)).sort().pop();
   if (jadx) {
     try {
@@ -125,7 +142,74 @@ function discover(dir) {
   const jdk = entries.filter((e) => /^jdk-\d+/.test(e)).sort().pop();
   const javaHome = jdk && resolveJavaHome(path.join(dir, jdk));
   if (javaHome) found.JAVA_HOME = javaHome;
+  const apktool = entries.filter((e) => /^apktool_.*\.jar$/.test(e)).sort().pop();
+  if (apktool) found.REA_APKTOOL_JAR = path.join(dir, apktool);
+  const r2bin = path.join(dir, RADARE2_DIR_NAME, 'bin');
+  if (fs.existsSync(path.join(r2bin, process.platform === 'win32' ? 'radare2.exe' : 'radare2'))) found.RADARE2_BIN = r2bin;
+  if (fs.existsSync(path.join(dir, 'bin'))) found.ENGINES_BIN = path.join(dir, 'bin');
   return found;
+}
+
+function compareVersionDirs(a, b) {
+  const va = (a.match(/\d+(?:\.\d+)*/) || ['0'])[0].split('.').map(Number);
+  const vb = (b.match(/\d+(?:\.\d+)*/) || ['0'])[0].split('.').map(Number);
+  for (let i = 0; i < Math.max(va.length, vb.length); i++) {
+    const d = (va[i] || 0) - (vb[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+/**
+ * Integrity check of what discover() found: is each engine complete and usable?
+ * Returns [{ engine, ok, detail, repair }] where `repair` is the exact installer command
+ * that fixes a broken piece (used by /rea:doctor and ensure-engines --status).
+ */
+function validateEngines(config = {}, env = process.env) {
+  const found = discoverAll(config);
+  const dir = enginesDir(config);
+  const installer = `node "${path.join(__dirname, 'install-engines.cjs')}"`;
+  const out = [];
+  const p = platformInfo();
+  // Ghidra
+  if (found.GHIDRA_INSTALL_DIR) {
+    const g = found.GHIDRA_INSTALL_DIR;
+    const headless = path.join(g, 'support', p.platform === 'win32' ? 'analyzeHeadless.bat' : 'analyzeHeadless');
+    const props = path.join(g, 'Ghidra', 'application.properties');
+    const osDir = p.platform === 'win32' ? 'win_x86_64' : p.platform === 'darwin' ? (p.arch === 'arm64' ? 'mac_arm_64' : 'mac_x86_64') : (p.arch === 'arm64' ? 'linux_arm_64' : 'linux_x86_64');
+    const decomp = path.join(g, 'Ghidra', 'Features', 'Decompiler', 'os', osDir, p.platform === 'win32' ? 'decompile.exe' : 'decompile');
+    const missing = [[headless, 'support/analyzeHeadless'], [props, 'Ghidra/application.properties'], [decomp, `Decompiler/os/${osDir}/decompile`]].filter(([f]) => !fs.existsSync(f)).map(([, n]) => n);
+    let version = '';
+    try { version = (/application\.version=(.+)/.exec(fs.readFileSync(props, 'utf8')) || [])[1] || ''; } catch { /* ignore */ }
+    const stale = version && version.trim() !== VERSIONS.ghidra;
+    const tmpLeft = fs.existsSync(`${g}.tmp`);
+    if (missing.length || tmpLeft) out.push({ engine: 'ghidra', ok: false, detail: `incomplete Ghidra at ${g}${missing.length ? ` (missing ${missing.join(', ')})` : ''}${tmpLeft ? ' (stale .tmp staging dir)' : ''} — a download or extraction was interrupted`, repair: `${installer} --force --only ghidra` });
+    else if (stale) out.push({ engine: 'ghidra', ok: true, detail: `Ghidra ${version.trim()} at ${g} (pinned version is ${VERSIONS.ghidra})`, repair: `${installer} --upgrade` });
+    else out.push({ engine: 'ghidra', ok: true, detail: `Ghidra ${version.trim() || VERSIONS.ghidra} at ${g}` });
+  } else {
+    out.push({ engine: 'ghidra', ok: false, detail: `Ghidra not found in ${dir}`, repair: `${installer} --only ghidra` });
+  }
+  // JDK
+  const jdk = findJdk(config, env);
+  if (jdk.ok) out.push({ engine: 'jdk', ok: true, detail: `${jdk.line} [${jdk.source}${jdk.javaHome ? `: ${jdk.javaHome}` : ''}]` });
+  else if (jdk.major >= VERSIONS.jdkMajor && !jdk.javac) out.push({ engine: 'jdk', ok: false, detail: `java ${jdk.major} found but javac is missing (a JRE, not a JDK) — Ghidra needs a full JDK`, repair: `${installer} --force --only jdk` });
+  else if (jdk.major && jdk.major < VERSIONS.jdkMajor) out.push({ engine: 'jdk', ok: false, detail: `java ${jdk.major} is too old (need ${VERSIONS.jdkMajor}+)`, repair: `${installer} --only jdk` });
+  else out.push({ engine: 'jdk', ok: false, detail: 'no usable JDK 21+', repair: `${installer} --only jdk` });
+  // jadx
+  if (found.REA_JADX_MCP_JAR) {
+    const jar = found.REA_JADX_MCP_JAR;
+    let okZip = false;
+    try { const fd = fs.openSync(jar, 'r'); const b = Buffer.alloc(4); fs.readSync(fd, b, 0, 4, 0); fs.closeSync(fd); okZip = b[0] === 0x50 && b[1] === 0x4b; } catch { /* ignore */ }
+    if (okZip) out.push({ engine: 'jadx', ok: true, detail: `${path.basename(jar)}${path.basename(jar) !== VERSIONS.jadxJar ? ` (pinned: ${VERSIONS.jadxJar})` : ''}`, ...(path.basename(jar) !== VERSIONS.jadxJar ? { repair: `${installer} --upgrade` } : {}) });
+    else out.push({ engine: 'jadx', ok: false, detail: `${jar} is not a valid jar (truncated download)`, repair: `${installer} --force --only jadx` });
+  } else {
+    out.push({ engine: 'jadx', ok: false, detail: `jadx-headless-mcp not found in ${dir}`, repair: `${installer} --only jadx` });
+  }
+  // optional engines: report only when present or selected
+  const sel = engineSelection(config, env);
+  if (found.REA_APKTOOL_JAR || sel.list.includes('apktool')) out.push({ engine: 'apktool', ok: Boolean(found.REA_APKTOOL_JAR), detail: found.REA_APKTOOL_JAR ? path.basename(found.REA_APKTOOL_JAR) : 'not installed (optional)', ...(found.REA_APKTOOL_JAR ? {} : { repair: `${installer} --only apktool` }) });
+  if (found.RADARE2_BIN || sel.list.includes('radare2')) out.push({ engine: 'radare2', ok: Boolean(found.RADARE2_BIN), detail: found.RADARE2_BIN || 'not installed (optional)', ...(found.RADARE2_BIN ? {} : { repair: `${installer} --only radare2` }) });
+  return out;
 }
 
 /** discover() across the primary and legacy directories; first hit per key wins. */
@@ -188,12 +272,53 @@ function installStatus(dir) {
   return { running, done: fs.existsSync(done), lock, doneFile: done, log };
 }
 
-/** Which engines the user wants: config.engines array, REA_PLUGIN_ENGINES, or all. */
+/**
+ * Which engines the user wants: REA_PLUGIN_ENGINES, config.engines, or all.
+ * "all" = ghidra, jadx, apt (Linux). Optional engines (apktool, radare2) are installed only
+ * when listed explicitly or when "all" is combined with config.optional_engines: true.
+ */
 function engineSelection(config = {}, env = process.env) {
-  const sel = Array.isArray(config.engines) && config.engines.length ? config.engines.join(',') : clean(env.REA_PLUGIN_ENGINES) || 'all';
+  const sel = clean(env.REA_PLUGIN_ENGINES) || (Array.isArray(config.engines) && config.engines.length ? config.engines.join(',') : 'all');
   const list = sel.split(',').map((s) => s.trim()).filter(Boolean);
-  const wants = (name) => list.includes('all') || list.includes(name);
-  return { selection: sel, list, wants };
+  const optional = config.optional_engines === true || clean(env.REA_PLUGIN_OPTIONAL_ENGINES) === '1';
+  const wants = (name) => list.includes(name) || (list.includes('all') && (!OPTIONAL_ENGINES.includes(name) || optional));
+  return { selection: sel, list, wants, optional };
+}
+const OPTIONAL_ENGINES = ['apktool', 'radare2'];
+
+/** Where pre-downloaded archives are looked up before hitting the network (offline / mirror). */
+function archiveDirs(config = {}, env = process.env, dir = enginesDir(config)) {
+  return [clean(env.REA_PLUGIN_ARCHIVE_DIR), clean(config.archive_dir), path.join(dir, 'archives')].filter(Boolean);
+}
+
+/**
+ * Router settings: ~/.rea-plugin.json `router` (true/false/{allow,deny}) plus a project
+ * `.rea-plugin.json` in $CLAUDE_PROJECT_DIR (same shape) whose values take precedence.
+ * allow/deny are regex strings tested against the prompt; deny wins, allow forces routing.
+ */
+function routerConfig(config = {}, env = process.env) {
+  const merged = { enabled: true, allow: [], deny: [] };
+  const apply = (r) => {
+    if (r === false) merged.enabled = false;
+    else if (r === true) merged.enabled = true;
+    else if (r && typeof r === 'object') {
+      if (r.enabled === false) merged.enabled = false;
+      if (r.enabled === true) merged.enabled = true;
+      if (Array.isArray(r.allow)) merged.allow.push(...r.allow.filter((x) => typeof x === 'string'));
+      if (Array.isArray(r.deny)) merged.deny.push(...r.deny.filter((x) => typeof x === 'string'));
+    }
+  };
+  apply(config.router);
+  const projectDir = clean(env.CLAUDE_PROJECT_DIR);
+  if (projectDir) {
+    try {
+      const pc = JSON.parse(fs.readFileSync(path.join(projectDir, '.rea-plugin.json'), 'utf8'));
+      apply(pc && pc.router);
+      merged.projectFile = path.join(projectDir, '.rea-plugin.json');
+    } catch { /* none */ }
+  }
+  if (clean(env.REA_PLUGIN_ROUTER) === '0') merged.enabled = false;
+  return merged;
 }
 
 /** Should engines be installed automatically when missing? Default: yes, unless disabled. */
@@ -210,6 +335,9 @@ function expectedPaths(dir) {
     GHIDRA_INSTALL_DIR: path.join(dir, GHIDRA_DIR_NAME),
     REA_JADX_MCP_JAR: path.join(dir, VERSIONS.jadxJar),
     JDK_DIR: path.join(dir, JDK_DIR_NAME),
+    REA_APKTOOL_JAR: path.join(dir, VERSIONS.apktoolJar),
+    RADARE2_DIR: path.join(dir, RADARE2_DIR_NAME),
+    BIN_DIR: path.join(dir, 'bin'),
   };
 }
 
@@ -219,6 +347,8 @@ function summarize(found, jdk) {
   parts.push(found.GHIDRA_INSTALL_DIR ? `Ghidra ✓ (${found.GHIDRA_INSTALL_DIR})` : 'Ghidra ✗');
   parts.push(found.REA_JADX_MCP_JAR ? 'jadx ✓' : 'jadx ✗');
   parts.push(jdk && jdk.ok ? `JDK ${jdk.major} ✓ (${jdk.source})` : 'JDK 21+ ✗');
+  if (found.REA_APKTOOL_JAR) parts.push('apktool ✓');
+  if (found.RADARE2_BIN) parts.push('radare2 ✓');
   return parts.join(', ');
 }
 
@@ -226,6 +356,12 @@ module.exports = {
   VERSIONS,
   GHIDRA_DIR_NAME,
   JDK_DIR_NAME,
+  RADARE2_DIR_NAME,
+  OPTIONAL_ENGINES,
+  compareVersionDirs,
+  validateEngines,
+  archiveDirs,
+  routerConfig,
   clean,
   platformInfo,
   readConfig,

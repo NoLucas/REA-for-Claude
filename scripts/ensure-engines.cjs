@@ -72,8 +72,15 @@ function main() {
   const needJdk = !jdk.ok && config.jdk !== false && process.env.REA_PLUGIN_SKIP_JDK !== '1';
   const missing = [needJdk && 'JDK 21', needGhidra && 'Ghidra', needJadx && 'jadx'].filter(Boolean);
 
-  if (missing.length === 0) {
+  // Integrity: a half-extracted Ghidra, a JRE without javac, or a truncated jar looks
+  // "present" to the quick check above; validateEngines() finds it and names the exact fix.
+  const broken = lib.validateEngines(config).filter((v) => !v.ok && v.repair && !missing.some((m) => m.toLowerCase().startsWith(v.engine === 'jdk' ? 'jdk' : v.engine)));
+  if (missing.length === 0 && broken.length === 0) {
     say(`REA: engines ready on ${plat.label} — ${lib.summarize(found, jdk)}.`);
+    return;
+  }
+  if (missing.length === 0 && broken.length) {
+    say(`REA: engines present on ${plat.label} but ${broken.map((b) => `${b.engine} is broken (${b.detail})`).join('; ')}. Repair: ${broken.map((b) => b.repair).join(' ; ')}`);
     return;
   }
   if (status.running) {
@@ -99,6 +106,10 @@ function main() {
 
 try {
   main();
+  if (statusOnly) {
+    // Full per-engine table with the exact repair command for anything broken (used by /rea:doctor).
+    for (const v of lib.validateEngines(lib.readConfig())) say(`  ${v.ok ? '✓' : '✗'} ${v.engine}: ${v.detail}${v.repair ? `  →  ${v.repair}` : ''}`);
+  }
 } catch (err) {
   say(`REA: engine check failed: ${err.message}`);
 }

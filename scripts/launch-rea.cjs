@@ -87,6 +87,16 @@ function main() {
     if (javaHome === discovered.JAVA_HOME) log(`using bundled JDK: ${javaHome}`);
   }
 
+  // Optional engines: <engines>/bin (apktool wrapper) and radare2/bin go first on PATH so
+  // REA finds `apktool` / `radare2` / `r2` exactly like an apt install would provide them.
+  {
+    const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path') || 'PATH';
+    const extra = [discovered.RADARE2_BIN, discovered.ENGINES_BIN].filter(Boolean);
+    const parts = (env[pathKey] || '').split(path.delimiter);
+    for (const dirToAdd of extra.reverse()) if (!parts.includes(dirToAdd)) env[pathKey] = dirToAdd + path.delimiter + env[pathKey];
+    if (discovered.REA_APKTOOL_JAR && !clean(env.REA_APKTOOL_JAR)) env.REA_APKTOOL_JAR = discovered.REA_APKTOOL_JAR;
+  }
+
   const autoEngines = lib.autoEnginesEnabled(config, env);
   delete env.REA_PLUGIN_AUTO_ENGINES;
 
