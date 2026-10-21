@@ -78,13 +78,20 @@ function main() {
 
   // JDK: user JAVA_HOME > config.java_home > bundled ~/.rea-engines/jdk-21. Ghidra and the
   // jadx jar both need it; putting bin/ first on PATH covers tools that call plain `java`.
-  const javaHome = clean(env.JAVA_HOME) || clean(config.java_home) || discovered.JAVA_HOME;
+  // Falls back to a JDK another tool installed (IntelliJ ~/.jdks, Temurin, Homebrew, apt …)
+  // so a machine that already has Java 21+ never downloads a second one.
+  let javaHome = clean(env.JAVA_HOME) || clean(config.java_home) || discovered.JAVA_HOME;
+  let javaSource = clean(env.JAVA_HOME) ? 'JAVA_HOME' : clean(config.java_home) ? 'config' : discovered.JAVA_HOME ? 'bundled' : null;
+  if (!javaHome) {
+    const sys = lib.findJdk(config, env);
+    if (sys.ok && sys.javaHome) { javaHome = sys.javaHome; javaSource = sys.source; }
+  }
   if (javaHome && fs.existsSync(lib.javaBin(javaHome))) {
     env.JAVA_HOME = javaHome;
     const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path') || 'PATH';
     const bin = path.join(javaHome, 'bin');
     if (!(env[pathKey] || '').split(path.delimiter).includes(bin)) env[pathKey] = bin + path.delimiter + (env[pathKey] || '');
-    if (javaHome === discovered.JAVA_HOME) log(`using bundled JDK: ${javaHome}`);
+    if (javaSource === 'bundled' || javaSource === 'system') log(`using ${javaSource} JDK: ${javaHome}`);
   }
 
   // Optional engines: <engines>/bin (apktool wrapper) and radare2/bin go first on PATH so

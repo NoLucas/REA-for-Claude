@@ -63,10 +63,14 @@ function platformInfo() {
   };
 }
 
-/** ~/.rea-plugin.json (or $REA_PLUGIN_CONFIG, or $CLAUDE_PLUGIN_DATA/config.json). */
+/**
+ * ~/.rea-plugin.json, or $CLAUDE_PLUGIN_DATA/config.json. When REA_PLUGIN_CONFIG is set it
+ * is the only file consulted (a missing file means "no config"), so tests and scripted
+ * installs are hermetic on machines that also have a personal ~/.rea-plugin.json.
+ */
 function readConfig(log) {
-  const candidates = [
-    clean(process.env.REA_PLUGIN_CONFIG),
+  const explicit = clean(process.env.REA_PLUGIN_CONFIG);
+  const candidates = explicit ? [explicit] : [
     path.join(os.homedir(), '.rea-plugin.json'),
     clean(process.env.CLAUDE_PLUGIN_DATA) && path.join(process.env.CLAUDE_PLUGIN_DATA, 'config.json'),
   ].filter(Boolean);
@@ -243,7 +247,39 @@ function javaInfo(javaExe, env = process.env) {
   return { ok: major >= VERSIONS.jdkMajor && javac, major, line, javac };
 }
 
-/** Is a suitable JDK reachable: explicit JAVA_HOME, the bundled one, or PATH? */
+/**
+ * JDKs installed by other tools (IntelliJ's ~/.jdks, Temurin/Microsoft/Zulu/Corretto
+ * installers, Homebrew, apt, sdkman). Returned newest-first; only directories with a java
+ * binary. Used before downloading anything, so a machine that already has a JDK 21+ never
+ * fetches another one.
+ */
+function systemJdkCandidates(env = process.env) {
+  const home = os.homedir();
+  const roots = [];
+  if (process.platform === 'win32') {
+    const pf = [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432, env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs')].filter(Boolean);
+    for (const base of pf) for (const vendor of ['Java', 'Eclipse Adoptium', 'Eclipse Foundation', 'Microsoft', 'Zulu', 'Amazon Corretto', 'BellSoft', 'Semeru', 'OpenJDK', 'Azul']) roots.push(path.join(base, vendor));
+    roots.push(path.join(home, '.jdks'), path.join(home, 'scoop', 'apps'));
+  } else if (process.platform === 'darwin') {
+    roots.push('/Library/Java/JavaVirtualMachines', path.join(home, 'Library', 'Java', 'JavaVirtualMachines'), '/opt/homebrew/opt', '/usr/local/opt', path.join(home, '.jdks'), path.join(home, '.sdkman', 'candidates', 'java'));
+  } else {
+    roots.push('/usr/lib/jvm', '/usr/java', '/opt', path.join(home, '.jdks'), path.join(home, '.sdkman', 'candidates', 'java'));
+  }
+  const found = [];
+  for (const root of roots) {
+    let entries = [];
+    try { entries = fs.readdirSync(root); } catch { continue; }
+    for (const e of entries) {
+      if (!/jdk|java|temurin|zulu|corretto|openjdk|semeru|liberica|microsoft/i.test(e) && root !== '/usr/lib/jvm') continue;
+      const dir = path.join(root, e);
+      const candidates = [dir, path.join(dir, 'Contents', 'Home'), path.join(dir, 'libexec', 'openjdk.jdk', 'Contents', 'Home'), path.join(dir, 'current')];
+      for (const c of candidates) if (fs.existsSync(javaBin(c)) && !found.includes(c)) found.push(c);
+    }
+  }
+  return found.sort(compareVersionDirs).reverse();
+}
+
+/** Is a suitable JDK reachable: explicit JAVA_HOME, the bundled one, PATH, or a system install? */
 function findJdk(config = {}, env = process.env) {
   const fromEnv = clean(env.JAVA_HOME);
   if (fromEnv && fs.existsSync(javaBin(fromEnv))) {
@@ -257,6 +293,13 @@ function findJdk(config = {}, env = process.env) {
   }
   const onPath = javaInfo(undefined, env);
   if (onPath.ok) return { source: 'PATH', javaHome: undefined, ...onPath };
+  for (const c of systemJdkCandidates(env)) {
+    // Cheap pre-filter on the directory name before spawning java: skip obvious < 21.
+    const m = /(\d+)/.exec(path.basename(c.replace(/[\\/]Contents[\\/]Home$/, '')));
+    if (m && Number(m[1]) >= 8 && Number(m[1]) < VERSIONS.jdkMajor) continue;
+    const info = javaInfo(javaBin(c), env);
+    if (info.ok) return { source: 'system', javaHome: c, ...info };
+  }
   return { source: 'none', javaHome: undefined, ok: false, major: onPath.major, line: onPath.line, javac: onPath.javac };
 }
 
@@ -373,6 +416,7 @@ module.exports = {
   discoverAll,
   javaInfo,
   findJdk,
+  systemJdkCandidates,
   installStatus,
   engineSelection,
   autoEnginesEnabled,
