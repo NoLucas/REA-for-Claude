@@ -7,9 +7,25 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/ensure-engines.cjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/ensure-engines.cjs"
+            ],
             "timeout": 20,
             "statusMessage": "REA: checking analysis engines"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/rea-router.cjs"
+            ],
+            "timeout": 10
           }
         ]
       }
