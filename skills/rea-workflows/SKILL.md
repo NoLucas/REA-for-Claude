@@ -11,6 +11,11 @@ skill has the full tool reference and recovery steps), and **save each tool resu
 Always confirm the engine is ready first (`/rea:doctor`); if a call returns
 `provider_unavailable`, see the `rea-anywhere` skill.
 
+Tool names below are REA's bare names. They are `mcp__rea__<name>` when the server runs in this
+session and `mcp__remote-devices__plugin_rea_rea__<name>` when a claude.ai session is linked to
+the user's computer (paths are then paths on that computer). If neither exists, REA is not
+loaded: say so and offer `/rea:start`.
+
 General loop for every target:
 1. `open_binary` (or the type-specific open tool) on the absolute path → note the target is
    now the active document.

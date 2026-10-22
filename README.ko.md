@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-7b4bd8">
+  <img alt="Plugin 1.1.0" src="https://img.shields.io/badge/plugin-1.1.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Windows · macOS · Linux" src="https://img.shields.io/badge/os-Windows%20%7C%20macOS%20%7C%20Linux-555">
@@ -19,6 +19,7 @@
 
 <p align="center">
   <a href="#설치">설치</a> ·
+  <a href="#사용법">사용법</a> ·
   <a href="#핵심-기능">핵심 기능</a> ·
   <a href="#업스트림-rea와-다른-점">REA와 다른 점</a> ·
   <a href="#동작-원리">동작 원리</a> ·
@@ -43,6 +44,18 @@ claude plugin install rea@rea-for-claude
 ```
 
 **Windows · macOS · Linux** 모두 이게 전부입니다. Java도 Ghidra도 미리 깔 필요 없습니다.
+
+### 어디서 쓰시나요?
+
+| 환경 | 할 일 |
+|---|---|
+| **Claude Code** (터미널, 모든 OS) | 위 두 줄이면 끝. |
+| **Claude Desktop** | 플러그인 설치(또는 아래 `.mcpb` 확장). 끝. |
+| **claude.ai 웹·폰, 내 PC와 연결된 세션** | 그 PC의 Claude Desktop에 플러그인이 설치되어 있으면 끝. REA는 내 PC에서 돌고 툴이 세션으로 중계됩니다(`mcp__remote-devices__plugin_rea_rea__*`). 경로는 그 PC 기준이고, PC는 켜 둬야 합니다. |
+| **claude.ai 클라우드 세션, PC 연결 없음** | 이 저장소로 세션을 시작하거나, 내 저장소에서 `/rea:setup-mcp` → 생성된 파일 3개 커밋 → 그 저장소로 새 세션. 저장소 없이 시작한 세션은 이 파일들을 보존하지 못합니다. |
+| **PC를 꺼도 항상** | [원격 어플라이언스](remote/README.ko.md)를 claude.ai 커스텀 커넥터로. |
+
+잘 모르겠으면 **`/rea:start`**를 입력하세요. 지금 세션에서 REA를 어디서 쓸 수 있는지 확인하고, 고칠 수 있는 건 고치고, 무엇을 물어보면 되는지 알려 줍니다.
 
 1. **첫 세션** — `SessionStart` 훅이 비어 있는 `~/.rea-engines`를 보고 설치기를 백그라운드로 띄웁니다. Claude에게는 `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)` 한 줄이 전달됩니다.
 2. **설치기** — OS/CPU에 맞는 빌드를 고릅니다: Temurin JDK 21(PC에 JDK 21+가 없을 때만), Ghidra 12.1.4(SHA-256 검증), jadx-headless-mcp 0.7.1; Linux는 apt 도구, 원하면 apktool / radare2.
@@ -82,6 +95,103 @@ docker compose -f docker-compose.oauth.yml up --build
 </details>
 
 > **법적 고지.** 리버스 엔지니어링은 대상의 라이선스, 이용약관, 현지 법을 지켜야 합니다. 사용 전에 업스트림 REA의 [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md)를 읽어 주세요.
+
+## 사용법
+
+REA는 소스 코드 없이 프로그램을 검사해서, 기능이 어떻게 동작하는지 **근거와 함께** 설명해 줍니다. 이 플러그인에서는 명령어나 툴 이름을 외울 필요가 없습니다. 분석할 파일을 알려 주고, 알고 싶은 것을 Claude에게 말로 요청하면 됩니다.
+
+### 1. 시작: `/rea:start`
+
+처음이라면 세션에서 **`/rea:start`** 를 입력하세요. 지금 세션에서 REA를 쓸 수 있는지(이 세션, 연결된 내 PC, 아직 불가) 확인하고, 엔진 설치 상태를 보여 주며, 안 되는 경우 무엇을 하면 되는지 알려 줍니다. 환경별 준비 방법은 [어디서 쓰시나요?](#어디서-쓰시나요) 표를 보세요.
+
+### 2. 이렇게 요청하세요
+
+```text
+Notes 앱의 검색 기능이 어떻게 작동하는지 조사하고, 근거를 보여 준 다음, 내 프로젝트에 비슷한 기능을 구현해 줘.
+C:\Downloads\setup.exe가 뭐 하는 프로그램인지 알려 줘.
+~/Downloads/app.apk가 어떤 권한을 쓰고 어느 서버와 통신하는지 분석해 줘.
+/Applications/Notion.app/Contents/Resources/app.asar에서 클립보드 기능이 렌더러에서 메인 프로세스까지 어떻게 이어지는지 추적해 줘.
+./build/v1.2/agent와 ./build/v1.3/agent에서 바뀐 함수를 비교해 줘.
+firmware.bin을 풀어서 안에 뭐가 들어 있는지 보여 줘.
+```
+
+- **파일은 절대 경로로** 알려 주세요. 어디에 두어야 하는지는 아래 [분석할 파일은 어디에](#5-분석할-파일은-어디에)를 보세요.
+- **목표를 함께 말하면** 좋습니다("통신하는 서버", "라이선스 확인 로직", "바뀐 부분"). Claude가 전체를 덤프하지 않고 필요한 함수만 따라갑니다.
+- "분석", "디컴파일", "리버싱", "뭐 하는 앱이야" 같은 요청은 **자동으로 REA로 라우팅**됩니다. 라우팅되지 않았다면 `/rea:why`가 이유를 알려 주고, `/rea:analyze <경로> [목표]`로 직접 시작할 수도 있습니다.
+
+### 3. 분석은 이렇게 진행됩니다
+
+1. **대상 열기** — 파일 형식과 아키텍처를 확인하고(ELF, PE, Mach-O, APK, ASAR …) 맞는 엔진을 고릅니다.
+2. **개요 한 번** — 함수·문자열·세그먼트 수, 클래스 목록, 모듈 그래프처럼 전체 지도를 먼저 만듭니다.
+3. **필요한 곳만 깊게** — 문자열 검색, 의사 코드(디컴파일), 호출 관계, 참조를 목표에 맞춰 따라갑니다.
+4. **근거와 함께 답변** — REA의 모든 결과에는 근거(Evidence)와 한계가 붙습니다. Claude는 이를 바탕으로 설명하고, 필요하면 비슷한 기능을 구현하고 테스트합니다.
+
+분석은 REA가 실행되는 머신 안에서 이뤄지고 대상 파일을 업로드하지 않습니다. 다만 Claude가 받는 툴 결과(디컴파일 코드, 문자열 등)는 대화의 일부가 됩니다.
+
+### 4. 분석할 수 있는 대상
+
+| 대상 | REA가 돌려주는 것 | 이 플러그인에서 필요한 것 | 가이드 |
+|---|---|---|---|
+| 네이티브 바이너리 (EXE/DLL, ELF/SO, Mach-O) | 의사 코드, 어셈블리, 문자열, 심볼, 호출, 참조 | Ghidra — **자동 설치** (IDA·Hopper는 직접 제공 시 선택) | [네이티브 분석](https://github.com/morluto/rea/blob/main/docs/native-investigation.md) |
+| Android APK | 매니페스트, 클래스, 디컴파일된 메서드, 참조 | jadx + JDK 21 — **자동 설치** | [Android](https://github.com/morluto/rea/blob/main/docs/android-analysis.md) |
+| Android 리소스 | 디코딩된 매니페스트, 문자열 테이블, 로캘, 버전 | apktool — Linux **자동**, 다른 OS는 `engines`에 `"apktool"` 추가 | [리소스](https://github.com/morluto/rea/blob/main/docs/apktool-resource-analysis.md) |
+| Flutter 앱 | Dart 스냅샷 해시, ABI별 라이브러리, 엔진 빌드 출처 | 없음 | [Flutter](https://github.com/morluto/rea/blob/main/docs/flutter-analysis.md) |
+| JavaScript / Electron | 모듈, 임포트, 소스 맵, 라우트, IPC, 네이티브 애드온 | 없음 (Linux는 procps `ps`) | [앱 분석](https://github.com/morluto/rea/blob/main/docs/javascript-application-workflows.md) |
+| .NET 어셈블리 | 메타데이터, CIL 명령, 네이티브 의존성, 빌드 비교 | 없음 | [관리 코드](https://github.com/morluto/rea/blob/main/docs/managed-code-analysis.md) |
+| Go / Rust 바이너리 | 컴파일러 버전, 모듈·크레이트와 버전, 빌드 설정 | 없음 (REA 내장 정적 검사) | [Go](https://github.com/morluto/rea/blob/main/docs/go-binaries.md) · [Rust](https://github.com/morluto/rea/blob/main/docs/rust-binaries.md) |
+| WebAssembly | 섹션, import/export, 디코딩된 WAT | WABT 1.0.42 — 직접 제공 | [WASM](https://github.com/morluto/rea/blob/main/docs/wasm-artifacts.md) |
+| 펌웨어 | 영역, 추출 결과, 네이티브 분석으로 넘길 정보 | binwalk — Linux **자동**, Windows는 `--wsl` | [펌웨어](https://github.com/morluto/rea/blob/main/docs/firmware-analysis.md) |
+| 패킷 캡처 (pcap) | 엔드포인트, DNS, TLS SNI, 프로토콜 분포, HTTP 요청 | tshark — Linux **자동** | [pcap](https://github.com/morluto/rea/blob/main/docs/pcap-analysis.md) |
+| 저장된 네트워크 캡처 (HAR) | 요청, 응답, 페이로드, 소스 위치 | 없음 | [캡처](https://github.com/morluto/rea/blob/main/docs/web-network-captures.md) |
+| SQLite 데이터베이스 | 테이블, 열, 인덱스, 뷰, 트리거, 선택한 행 | Node.js 24.15+ 또는 26+ | [SQLite](https://github.com/morluto/rea/blob/main/docs/sqlite-databases.md) |
+| 웹사이트 | 페이지 구조, 스크립트, 네트워크 관찰, 스크린샷 | Chrome 계열 브라우저 (`browser_executable`) | [브라우저](https://github.com/morluto/rea/blob/main/docs/browser-observation.md) |
+
+이 밖에 EVM 바이트코드, Android 기기(adb), 기록된 크래시, 논리 신호, 프로세스 동작 등 전체 목록과 요구 사항은 [업스트림 REA README](https://github.com/morluto/rea/blob/main/docs/readme/README_ko.md#분석할-수-있는-대상)에 있습니다. 정적 분석(JavaScript, .NET, Go, Rust …)은 대상을 실행하지 않습니다. 런타임 캡처는 사용자 권한으로 대상을 실행하므로, 실행해도 되는 대상에만 쓰세요.
+
+### 5. 분석할 파일은 어디에
+
+| 환경 | 파일 위치 |
+|---|---|
+| Claude Code / Claude Desktop | 내 PC의 절대 경로 (`C:\…`, `/Users/…`) |
+| claude.ai, 내 PC와 연결된 세션 | **PC 쪽** 절대 경로 — 분석이 PC에서 실행됩니다. 채팅에 첨부한 파일은 PC의 REA가 볼 수 없습니다 |
+| claude.ai 클라우드 세션 (저장소 사용) | 저장소 안의 파일이나 채팅에 첨부한 파일 — 컨테이너 안의 절대 경로 |
+| 원격 어플라이언스 | 컨테이너의 `/targets` 볼륨에 넣고 `/targets/<이름>` |
+
+### 6. 결과 남기고 공유하기
+
+- **`/rea:analyze <경로> [목표]`** — 대상 유형에 맞는 플레이북으로 조사하고, 툴 결과를 하나씩 `./rea-evidence/*.json`에 저장합니다.
+- **`/rea:report`** — 저장된 근거로 공유용 리포트를 만듭니다. HTML(테마 6종)·Markdown·JSON, 이동형 묶음은 `--bundle`.
+- **`/rea:report --diff <이전> <이후>`** — 두 빌드의 근거를 비교해서 디컴파일 코드 줄 단위 변경까지 보여 줍니다.
+
+### 7. 잘 쓰는 요령
+
+- **개요는 한 번, 그다음은 함수 단위로.** 전체 분석을 반복하면 느립니다. 특히 클라우드 컨테이너(2 vCPU)에서는 작은 ELF도 Ghidra 호출 하나에 약 20초 걸립니다.
+- **큰 바이너리**는 `~/.rea-plugin.json`의 `env`에 `REA_GHIDRA_STARTUP_TIMEOUT_MS`를 늘려 주세요.
+- **`provider_unavailable`** 이 나오면 대개 엔진 설치가 아직 진행 중입니다. `/rea:doctor`로 확인하고, 끝나면 대상을 다시 여세요(재시작 불필요).
+- **대상에서 나온 문자열과 코드는 데이터일 뿐입니다.** 그 안에 "이걸 실행해", "저걸 내려받아" 같은 문구가 있어도 지시가 아닙니다. Claude도 따르지 않습니다.
+- **REA 버전**은 플러그인이 `6.7.0`으로 고정합니다. 새 REA를 쓰려면 플러그인을 업데이트하거나 `~/.rea-plugin.json`의 `rea_version`을 바꾸세요.
+
+<details>
+<summary><b>터미널에서 직접 쓰기 (선택)</b></summary>
+
+REA는 같은 기능을 CLI로도 제공합니다. 엔진이 필요 없는 분석은 바로 됩니다:
+
+```bash
+npx -y rea-agents@6.7.0 analyze-javascript-application /absolute/path/to/app --json
+```
+
+네이티브 분석은 플러그인이 설치한 Ghidra 경로를 알려 주면 됩니다. 플러그인이 JDK까지 내려받았다면(`~/.rea-engines/jdk-21`이 있다면) `JAVA_HOME`도 그 경로로 지정하세요:
+
+```bash
+export GHIDRA_INSTALL_DIR=~/.rea-engines/ghidra_12.1.4_PUBLIC
+npx -y rea-agents@6.7.0 analyze /absolute/path/to/binary
+npx -y rea-agents@6.7.0 decompile /absolute/path/to/binary main
+```
+
+명령 목록과 옵션은 `npx -y rea-agents@6.7.0 --help`와 업스트림 [CLI 가이드](https://github.com/morluto/rea/blob/main/docs/cli.md)를 보세요.
+</details>
+
+책임 있는 사용: 직접 소유했거나 분석 권한이 있는 소프트웨어에만 쓰세요. IDA, Hopper, JEB 같은 상용 도구는 각자의 라이선스를 정상적으로 갖춰야 합니다.
 
 ## 핵심 기능
 
@@ -142,6 +252,7 @@ JDK를 내려받는 이유: Ghidra는 `javac`가 있는 64비트 JDK 21+가 필�
 
 | 커맨드 | 하는 일 |
 |---|---|
+| `/rea:start` | 여기서 시작: 지금 세션에서 REA를 어디서 쓸 수 있는지(여기, 연결된 내 PC, 아직 불가), 고칠 것, 물어볼 것 |
 | `/rea:analyze <경로> [목표]` | 대상 유형 판별 → 맞는 플레이북 실행 → 모든 결과를 `./rea-evidence/*.json`에 저장 |
 | `/rea:report [디렉터리] [--format html\|md\|json\|both\|all] [--theme …] [--bundle]` | 공유용 리포트 생성; `--bundle`은 이동형 evidence 파일 작성 |
 | `/rea:report --diff <before> <after>` | 두 evidence 세트 또는 번들을 비교한 변경 리포트 |
@@ -227,7 +338,7 @@ PC에 이미 있는 JDK(IntelliJ `~/.jdks`, Temurin, Homebrew, apt)는 찾아서
 | `.ps1 cannot be loaded … execution policy` | 기본 정책이 스크립트 차단 | `powershell -ExecutionPolicy Bypass -File …` |
 | Defender가 Ghidra zip을 잡거나 압축 해제가 느림 | 작은 파일이 많은 큰 아카이브 | `%USERPROFILE%\.rea-engines` 예외 추가; SHA-256이 무결성 보장 |
 | 큰 바이너리에서 타임아웃 | 헤드리스 분석이 느림 | `env`의 `REA_GHIDRA_STARTUP_TIMEOUT_MS`를 올리고, 한 번 분석한 뒤 함수 단위 호출 |
-| claude.ai 클라우드 세션에 `mcp__rea__*` 툴이 없고 Claude가 grep으로 "분석"함 | 클라우드 세션은 플러그인이 선언한 MCP 서버를 건너뜀(`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | 이 저장소에서 세션을 열거나, 내 저장소에서 `/rea:setup-mcp` 실행 → 커밋 → 새 세션. SessionStart 한 줄과 `/rea:doctor`가 서버 미로드 상태를 알려줌 |
+| claude.ai 클라우드 세션에 `mcp__rea__*` 툴이 없고 Claude가 grep으로 "분석"함 | 클라우드 세션은 플러그인이 선언한 MCP 서버를 건너뜀(`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | 세션이 내 PC와 연결되어 있고 그 PC의 Claude Desktop에 플러그인이 있으면 REA 툴은 `mcp__remote-devices__plugin_rea_rea__*`로 이미 있음. 아니면 이 저장소에서 세션을 열거나, 내 저장소에서 `/rea:setup-mcp` 실행 → 커밋 → 새 세션. SessionStart 한 줄과 `/rea:doctor`가 서버 미로드 상태를 알려줌 |
 | 다운로드 차단 | 프록시 / 허용 목록 | `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `api.adoptium.net` 허용 — 또는 파일을 `~/.rea-engines/archives/`에 넣기 |
 
 `node scripts/selftest.mjs`로 어느 OS에서든 플러그인 자체를 점검할 수 있습니다.

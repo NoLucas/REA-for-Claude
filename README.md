@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-7b4bd8">
+  <img alt="Plugin 1.1.0" src="https://img.shields.io/badge/plugin-1.1.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Windows · macOS · Linux" src="https://img.shields.io/badge/os-Windows%20%7C%20macOS%20%7C%20Linux-555">
@@ -43,6 +43,18 @@ claude plugin install rea@rea-for-claude
 ```
 
 That is the whole setup on **Windows, macOS and Linux** — no Java, no Ghidra to install first.
+
+### Where are you using Claude?
+
+| Where | What to do |
+|---|---|
+| **Claude Code** (terminal, any OS) | The two commands above. Done. |
+| **Claude Desktop** | Install the plugin (or the `.mcpb` extension below). Done. |
+| **claude.ai web / phone, session linked to your computer** | Have the plugin installed in that computer's Claude Desktop. Done — REA runs on your computer and its tools are relayed into the session (`mcp__remote-devices__plugin_rea_rea__*`). Paths are paths on that computer; keep it on. |
+| **claude.ai cloud session, not linked** | Start the session on this repository, or run `/rea:setup-mcp` in your own repository, commit the three files and start a new session on it. A session without a repository cannot keep those files. |
+| **Always on, computer off** | The [remote appliance](remote/README.md) as a claude.ai custom connector. |
+
+Not sure? Type **`/rea:start`** — it checks where REA can run in the current session, fixes what it can, and tells you what to ask next.
 
 1. **First session** — a `SessionStart` hook sees an empty `~/.rea-engines` and starts the installer in the background. Claude is told: `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)`.
 2. **Installer** — picks the builds for your OS and CPU: Temurin JDK 21 (only when no JDK 21+ is already on the machine), Ghidra 12.1.4 (SHA-256 verified), jadx-headless-mcp 0.7.1; apt tools on Linux; apktool / radare2 on request.
@@ -142,6 +154,7 @@ Why a bundled JDK: Ghidra needs a 64-bit JDK 21+ with `javac`. The installer dow
 
 | Command | What it does |
 |---|---|
+| `/rea:start` | Start here: where REA can run in this session (here, your linked computer, or not yet), what to fix, what to ask |
 | `/rea:analyze <path> [goal]` | Detect the target type, run the matching playbook, save every result to `./rea-evidence/*.json` |
 | `/rea:report [dir] [--format html\|md\|json\|both\|all] [--theme …] [--bundle]` | Build the shareable report; `--bundle` writes a portable evidence file |
 | `/rea:report --diff <before> <after>` | Diff two evidence sets or bundles into a change report |
@@ -227,7 +240,7 @@ A JDK already on the machine (IntelliJ `~/.jdks`, Temurin, Homebrew, apt) is fou
 | `.ps1 cannot be loaded … execution policy` | Default policy blocks scripts | `powershell -ExecutionPolicy Bypass -File …` |
 | Ghidra zip flagged by Defender / slow extract | Large archive with many small files | Add an exclusion for `%USERPROFILE%\.rea-engines`; SHA-256 guarantees integrity |
 | Tools time out on big binaries | Headless analysis is slow | Raise `REA_GHIDRA_STARTUP_TIMEOUT_MS` under `env`; analyse once, then per-function calls |
-| No `mcp__rea__*` tools in a claude.ai cloud session; Claude "analyses" with grep instead | Cloud sessions skip plugin-declared MCP servers (`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | Start the session on this repo, or run `/rea:setup-mcp` in yours, commit, and start a new session; the SessionStart line and `/rea:doctor` both say when the server is not loaded |
+| No `mcp__rea__*` tools in a claude.ai cloud session; Claude "analyses" with grep instead | Cloud sessions skip plugin-declared MCP servers (`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`) | If the session is linked to your computer and its Claude Desktop has the plugin, REA's tools are there as `mcp__remote-devices__plugin_rea_rea__*`. Otherwise start the session on this repo, or run `/rea:setup-mcp` in yours, commit, and start a new session; the SessionStart line and `/rea:doctor` both say when the server is not loaded |
 | Download blocked | Proxy / allow-list | Allow `github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `api.adoptium.net` — or drop the files into `~/.rea-engines/archives/` |
 
 `node scripts/selftest.mjs` checks the plugin itself on any OS.

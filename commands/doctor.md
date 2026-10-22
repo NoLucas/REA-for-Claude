@@ -13,8 +13,17 @@ Report REA's readiness in plain language.
    a JRE without `javac` → `--force --only jdk`, an older pinned version → `--upgrade`.
    Offer to run that command; it never starts an install by itself. The table starts with an
    `mcp:` row: `✓ mcp: rea server registered via …` or a `REA: the REA MCP server is NOT loaded`
-   line — the latter means this host skips plugin MCP servers (claude.ai cloud sessions do); no
-   engine fix helps until `/rea:setup-mcp` has been run, committed, and a new session started.
+   line — the latter means this host skips plugin MCP servers (claude.ai cloud sessions do).
+   In that case check your tool list (search for `open_binary` if deferred) before concluding:
+   - `mcp__remote-devices__plugin_rea_rea__*` tools mean the session is linked to the user's
+     computer and REA runs **there**. Then this container's engine table is irrelevant: skip
+     steps 2–3, call `mcp__remote-devices__plugin_rea_rea__binary_session` instead and summarise
+     its `analysis_provider_candidates` (provider `status`, `reason`) and `server_identity` the
+     same way as step 4. Say plainly that REA is ready through their computer.
+   - No such tools: no engine fix helps until REA's server is loaded. Give the options from
+     `/rea:start` step 3 (link the session to a computer with the plugin in Claude Desktop, or
+     `/rea:setup-mcp` + commit in a repository + new session, or a session on
+     NoLucas/REA-for-Claude).
 2. If an install is in progress, show `tail -5 ~/.rea-engines/install.log` (Windows:
    `type %USERPROFILE%\.rea-engines\install.log`), estimate the remaining time from the
    log (Ghidra is the long download, ~570 MB) and say that REA's analysis tools answer

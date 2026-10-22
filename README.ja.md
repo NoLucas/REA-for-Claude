@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-7b4bd8">
+  <img alt="Plugin 1.1.0" src="https://img.shields.io/badge/plugin-1.1.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Windows · macOS · Linux" src="https://img.shields.io/badge/os-Windows%20%7C%20macOS%20%7C%20Linux-555">
@@ -43,6 +43,18 @@ claude plugin install rea@rea-for-claude
 ```
 
 **Windows・macOS・Linux** のどれでも、セットアップはこれで終わりです — Java も Ghidra も先に入れる必要はありません。
+
+### どこで使いますか？
+
+| 環境 | やること |
+|---|---|
+| **Claude Code**（ターミナル、全 OS） | 上の 2 行で完了。 |
+| **Claude Desktop** | プラグイン（または下の `.mcpb` 拡張）をインストール。完了。 |
+| **claude.ai Web・スマホ、PC にリンクしたセッション** | その PC の Claude Desktop にプラグインが入っていれば完了。REA は PC 上で動き、ツールがセッションに中継されます（`mcp__remote-devices__plugin_rea_rea__*`）。パスはその PC のもので、PC は起動したままにしてください。 |
+| **claude.ai クラウドセッション（リンクなし）** | セッションが PC にリンクされ、その PC の Claude Desktop にプラグインがあれば REA のツールは `mcp__remote-devices__plugin_rea_rea__*` として既にある。なければこのリポジトリでセッションを開くか、自分のリポジトリで `/rea:setup-mcp` → 生成された 3 ファイルをコミット → そのリポジトリで新しいセッション。リポジトリなしのセッションはこれらのファイルを保持できません。 |
+| **PC を切っても常時** | [リモートアプライアンス](remote/README.md)を claude.ai のカスタムコネクタとして。 |
+
+迷ったら **`/rea:start`** と入力してください。今のセッションで REA がどこで動くかを確認し、直せるものは直し、次に何を頼めばよいかを示します。
 
 1. **初回セッション** — `SessionStart` フックが空の `~/.rea-engines` を見つけ、インストーラをバックグラウンドで起動します。Claude には `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)` と伝わります。
 2. **インストーラ** — OS と CPU に合ったビルドを選びます：Temurin JDK 21（マシンに JDK 21+ が無い場合のみ）、Ghidra 12.1.4（SHA-256 検証）、jadx-headless-mcp 0.7.1。Linux では apt ツールも、希望すれば apktool / radare2 も。
@@ -142,6 +154,7 @@ JDK を同梱する理由：Ghidra には `javac` 付きの 64 ビット JDK 21+
 
 | コマンド | 内容 |
 |---|---|
+| `/rea:start` | まずここから：このセッションで REA がどこで動くか（ここ・リンクした PC・まだ不可）、直すこと、頼めること |
 | `/rea:analyze <パス> [目的]` | 対象の種類を判定し、対応するプレイブックを実行し、すべての結果を `./rea-evidence/*.json` に保存 |
 | `/rea:report [dir] [--format html\|md\|json\|both\|all] [--theme …] [--bundle]` | 共有用レポートを生成；`--bundle` は持ち運べる証拠ファイルを出力 |
 | `/rea:report --diff <before> <after>` | 2 つの証拠セットまたはバンドルを比較して変更レポートに |
@@ -227,7 +240,7 @@ JDK を同梱する理由：Ghidra には `javac` 付きの 64 ビット JDK 21+
 | `.ps1 cannot be loaded … execution policy` | 既定ポリシーがスクリプトをブロック | `powershell -ExecutionPolicy Bypass -File …` |
 | Ghidra の zip が Defender に引っかかる / 展開が遅い | 小さなファイルが大量にある大きなアーカイブ | `%USERPROFILE%\.rea-engines` を除外に追加；SHA-256 が完全性を保証 |
 | 大きなバイナリでツールがタイムアウト | ヘッドレス解析は遅い | `env` の `REA_GHIDRA_STARTUP_TIMEOUT_MS` を上げる；一度解析してから関数単位で呼ぶ |
-| claude.ai クラウドセッションに `mcp__rea__*` ツールが無く、Claude が grep で「解析」する | クラウドセッションはプラグイン宣言の MCP サーバーを読み込まない（`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`） | このリポジトリでセッションを開くか、自分のリポジトリで `/rea:setup-mcp` → コミット → 新しいセッション。SessionStart の 1 行と `/rea:doctor` がサーバー未ロードを知らせる |
+| claude.ai クラウドセッションに `mcp__rea__*` ツールが無く、Claude が grep で「解析」する | クラウドセッションはプラグイン宣言の MCP サーバーを読み込まない（`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`） | セッションが PC にリンクされ、その PC の Claude Desktop にプラグインがあれば REA のツールは `mcp__remote-devices__plugin_rea_rea__*` として既にある。なければこのリポジトリでセッションを開くか、自分のリポジトリで `/rea:setup-mcp` → コミット → 新しいセッション。SessionStart の 1 行と `/rea:doctor` がサーバー未ロードを知らせる |
 | ダウンロードがブロックされる | プロキシ / 許可リスト | `github.com`、`objects.githubusercontent.com`、`release-assets.githubusercontent.com`、`api.adoptium.net` を許可 — またはファイルを `~/.rea-engines/archives/` に置く |
 
 `node scripts/selftest.mjs` でどの OS でもプラグイン自体を点検できます。

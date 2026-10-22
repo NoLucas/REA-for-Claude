@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NoLucas/REA-for-Claude/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="Plugin 1.0.0" src="https://img.shields.io/badge/plugin-1.0.0-7b4bd8">
+  <img alt="Plugin 1.1.0" src="https://img.shields.io/badge/plugin-1.1.0-7b4bd8">
   <img alt="REA 6.7.0" src="https://img.shields.io/badge/rea--agents-6.7.0-informational">
   <img alt="Ghidra 12.1.4" src="https://img.shields.io/badge/Ghidra-12.1.4-ff6f00">
   <img alt="Windows · macOS · Linux" src="https://img.shields.io/badge/os-Windows%20%7C%20macOS%20%7C%20Linux-555">
@@ -43,6 +43,18 @@ claude plugin install rea@rea-for-claude
 ```
 
 在 **Windows、macOS 和 Linux** 上这就是全部 — 不需要先装 Java，也不需要先装 Ghidra。
+
+### 你在哪里用 Claude？
+
+| 环境 | 要做什么 |
+|---|---|
+| **Claude Code**（终端，任意 OS） | 上面两行即可。 |
+| **Claude Desktop** | 安装插件（或下面的 `.mcpb` 扩展）即可。 |
+| **claude.ai 网页/手机，已链接到你电脑的会话** | 只要那台电脑的 Claude Desktop 装了插件即可。REA 在你的电脑上运行，工具被转发到会话中（`mcp__remote-devices__plugin_rea_rea__*`）；路径是那台电脑上的路径，电脑需保持开机。 |
+| **claude.ai 云会话，未链接** | 如果会话已链接到你的电脑且那台电脑的 Claude Desktop 装了插件，REA 工具已以 `mcp__remote-devices__plugin_rea_rea__*` 存在。否则在本仓库上开会话，或在你的仓库运行 `/rea:setup-mcp` → 提交生成的 3 个文件 → 在该仓库开新会话。没有仓库的会话无法保留这些文件。 |
+| **电脑关机也要用** | 把[远程设备](remote/README.md)作为 claude.ai 自定义连接器。 |
+
+不确定？输入 **`/rea:start`**——它会检查当前会话里 REA 能在哪里运行，修复能修复的，并告诉你接下来可以问什么。
 
 1. **首次会话** — `SessionStart` 钩子发现 `~/.rea-engines` 为空，在后台启动安装器，并告诉 Claude：`REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)`。
 2. **安装器** — 按你的系统和 CPU 选择构建：Temurin JDK 21（仅当机器上没有 JDK 21+ 时）、Ghidra 12.1.4（SHA-256 校验）、jadx-headless-mcp 0.7.1；Linux 上还有 apt 工具；按需安装 apktool / radare2。
@@ -142,6 +154,7 @@ docker compose -f docker-compose.oauth.yml up --build
 
 | 命令 | 作用 |
 |---|---|
+| `/rea:start` | 从这里开始：当前会话中 REA 能在哪里运行（本地、已链接的电脑、暂不可用）、需要修复什么、可以问什么 |
 | `/rea:analyze <路径> [目标]` | 判断目标类型，运行对应流程手册，把每个结果保存到 `./rea-evidence/*.json` |
 | `/rea:report [目录] [--format html\|md\|json\|both\|all] [--theme …] [--bundle]` | 生成可分享的报告；`--bundle` 写出可移植的证据文件 |
 | `/rea:report --diff <before> <after>` | 比较两组证据或两个证据包，生成变更报告 |
@@ -227,7 +240,7 @@ docker compose -f docker-compose.oauth.yml up --build
 | `.ps1 cannot be loaded … execution policy` | 默认策略阻止脚本 | `powershell -ExecutionPolicy Bypass -File …` |
 | Ghidra 压缩包被 Defender 拦截 / 解压很慢 | 大压缩包含大量小文件 | 为 `%USERPROFILE%\.rea-engines` 添加排除项；SHA-256 保证完整性 |
 | 大二进制文件超时 | 无头分析很慢 | 在 `env` 下调高 `REA_GHIDRA_STARTUP_TIMEOUT_MS`；分析一次后按函数调用 |
-| claude.ai 云会话里没有 `mcp__rea__*` 工具，Claude 改用 grep "分析" | 云会话跳过插件声明的 MCP 服务器（`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`） | 在本仓库上开会话，或在你的仓库运行 `/rea:setup-mcp` → 提交 → 新会话；SessionStart 那一行和 `/rea:doctor` 都会指出服务器未加载 |
+| claude.ai 云会话里没有 `mcp__rea__*` 工具，Claude 改用 grep "分析" | 云会话跳过插件声明的 MCP 服务器（`CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS=1`） | 如果会话已链接到你的电脑且那台电脑的 Claude Desktop 装了插件，REA 工具已以 `mcp__remote-devices__plugin_rea_rea__*` 存在。否则在本仓库上开会话，或在你的仓库运行 `/rea:setup-mcp` → 提交 → 新会话；SessionStart 那一行和 `/rea:doctor` 都会指出服务器未加载 |
 | 下载被拦截 | 代理 / 白名单 | 放行 `github.com`、`objects.githubusercontent.com`、`release-assets.githubusercontent.com`、`api.adoptium.net` — 或把文件放进 `~/.rea-engines/archives/` |
 
 `node scripts/selftest.mjs` 可在任何系统上检查插件本身。

@@ -11,6 +11,9 @@ skipped, so no `mcp__rea__*` tools (`open_binary`, `binary_overview`, …) exist
 `.mcp.json` is still honoured, and that is what this command writes. Local Claude Code and
 Claude Desktop load the plugin's server directly and do not need this.
 
+0. If `mcp__remote-devices__plugin_rea_rea__*` tools exist (search for `open_binary` if
+   deferred), the session is linked to the user's computer and REA already runs there through
+   Claude Desktop. Say so and stop unless the user explicitly wants a project registration too.
 1. Check first: `node "${CLAUDE_PLUGIN_ROOT}/scripts/setup-mcp.cjs" --check` — exit 0 means the
    server is already registered (it names the source); nothing to do.
 2. Otherwise run `node "${CLAUDE_PLUGIN_ROOT}/scripts/setup-mcp.cjs"` (add `--dir <path>` for a
@@ -25,7 +28,9 @@ Claude Desktop load the plugin's server directly and do not need this.
    takes effect in the **next** session; in a cloud session the three files must be committed
    (and pushed) first, because an uncommitted file does not survive into a new container. Offer to
    commit them (`git add .mcp.json .claude/rea-mcp.cjs .claude/settings.json`). Do not push unless
-   asked.
+   asked. If the script printed `WARNING: … is not a git repository`, say that the files cannot
+   be kept from here and offer the alternatives: attach a repository to the session and run this
+   there, or link the session to a computer whose Claude desktop app has the REA plugin.
 4. If the user asks for reverse engineering in *this* session, say that REA's tools are not
    available here yet rather than analysing by hand as if REA had run; `/rea:doctor` shows the
    `mcp:` row.

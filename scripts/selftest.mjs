@@ -166,6 +166,9 @@ section('MCP registration: cloud hosts skip plugin MCP servers; setup-mcp regist
   const h1 = spawnSync(process.execPath, [path.resolve('scripts/ensure-engines.cjs')], { encoding: 'utf8', env: skipEnv, cwd: pdir, timeout: 30000 });
   if (h1.status === 0 && /REA MCP server is NOT loaded/.test(h1.stdout) && /\/rea:setup-mcp/.test(h1.stdout)) ok('ensure-engines.cjs warns when the host skips plugin MCP servers and nothing registers rea');
   else bad(`ensure-engines.cjs (skip host): ${h1.stdout} ${h1.stderr}`);
+  // ... and points at the linked computer's relayed tools, /rea:start, and the missing git repo
+  if (h1.stdout.includes(`${enginesLib.LINKED_TOOL_PREFIX}open_binary`) && /\/rea:start/.test(h1.stdout) && /is not one, so files written here vanish/.test(h1.stdout)) ok('ensure-engines.cjs names the linked-computer tools, /rea:start, and that a non-git directory cannot keep the files');
+  else bad(`ensure-engines.cjs (linked / git hints): ${h1.stdout}`);
   // the _EXCEPT allow-list naming rea means the plugin server does load
   const h2 = spawnSync(process.execPath, [path.resolve('scripts/ensure-engines.cjs')], { encoding: 'utf8', env: { ...skipEnv, CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS_EXCEPT: 'documents,rea' }, cwd: pdir, timeout: 30000 });
   if (h2.status === 0 && !/NOT loaded/.test(h2.stdout)) ok('ensure-engines.cjs honours CLAUDE_CODE_SKIP_PLUGIN_MCP_SERVERS_EXCEPT');
@@ -192,6 +195,18 @@ section('MCP registration: cloud hosts skip plugin MCP servers; setup-mcp regist
   const after = JSON.parse(fs.readFileSync(path.join(pdir, '.mcp.json'), 'utf8'));
   if (rm.status === 0 && !after.mcpServers?.rea && after.mcpServers?.other && !fs.existsSync(path.join(pdir, '.claude', 'rea-mcp.cjs'))) ok('setup-mcp.cjs --remove keeps other servers');
   else bad(`setup-mcp.cjs --remove: ${rm.stdout} ${rm.stderr}`);
+  // cloud + no git repository: setup-mcp warns that the files will not survive the container
+  const cloudEnv = { ...skipEnv, CLAUDE_CODE_REMOTE: 'true' };
+  const wc = spawnSync(process.execPath, ['scripts/setup-mcp.cjs', '--dir', pdir], { encoding: 'utf8', env: cloudEnv, timeout: 30000 });
+  if (wc.status === 0 && /WARNING: .* is not a git repository/.test(wc.stdout)) ok('setup-mcp.cjs warns in a cloud session outside a git repository');
+  else bad(`setup-mcp.cjs (cloud, no git): ${wc.stdout} ${wc.stderr}`);
+  spawnSync(process.execPath, ['scripts/setup-mcp.cjs', '--remove', '--dir', pdir], { encoding: 'utf8', env: skipEnv, timeout: 30000 });
+  // router: when the server is not loaded, routed prompts are told about the linked-computer tools
+  const rq = JSON.stringify({ prompt: 'reverse engineer ./samples/firmware.bin' });
+  const r1 = spawnSync(process.execPath, [path.resolve('scripts/rea-router.cjs')], { input: rq, encoding: 'utf8', env: skipEnv, cwd: pdir, timeout: 20000 });
+  const r0 = spawnSync(process.execPath, [path.resolve('scripts/rea-router.cjs')], { input: rq, encoding: 'utf8', env: plainEnv, cwd: pdir, timeout: 20000 });
+  if (r1.status === 0 && r1.stdout.includes(enginesLib.LINKED_TOOL_PREFIX) && r1.stdout.includes('/rea:start') && r0.status === 0 && r0.stdout.includes('[REA]') && !r0.stdout.includes(enginesLib.LINKED_TOOL_PREFIX)) ok('rea-router.cjs adds the linked-computer hint only when the rea server is not loaded');
+  else bad(`rea-router.cjs (linked hint): skip=${r1.stdout} plain=${r0.stdout}`);
   fs.rmSync(pdir, { recursive: true, force: true });
 }
 
@@ -294,6 +309,12 @@ section('1.0: validation/repair, offline archives, router tuning, report themes/
   if (/windows-latest/.test(rel) && /macos-latest/.test(rel) && /ubuntu-latest/.test(rel) && /mcpb sign/.test(rel) && /--self-signed/.test(rel) && /mcpb verify/.test(rel)) ok('release.yml builds, signs and verifies .mcpb on 3 OSes');
   else bad('release.yml missing or incomplete');
   if (fs.existsSync('docs/STABILITY.md') && fs.existsSync('commands/why.md') && fs.existsSync('commands/setup-mcp.md')) ok('docs/STABILITY.md, /rea:why and /rea:setup-mcp present'); else bad('STABILITY.md, why.md or setup-mcp.md missing');
+  {
+    const start = fs.existsSync('commands/start.md') ? fs.readFileSync('commands/start.md', 'utf8') : '';
+    const readmes = ['README.md', 'README.ko.md', 'README.ja.md', 'README.zh-CN.md'].map((f) => fs.readFileSync(f, 'utf8'));
+    if (/^---\r?\ndescription: /.test(start) && start.includes(enginesLib.LINKED_TOOL_PREFIX) && readmes.every((t) => t.includes('/rea:start') && t.includes(enginesLib.LINKED_TOOL_PREFIX))) ok('/rea:start present; every README has the per-environment guide');
+    else bad('commands/start.md missing or a README lacks the /rea:start environment guide');
+  }
   fs.rmSync(edir, { recursive: true, force: true });
 }
 

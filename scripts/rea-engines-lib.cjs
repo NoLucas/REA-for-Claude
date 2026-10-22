@@ -430,9 +430,28 @@ function mcpRegistration(cwd) {
   return { projectDir, pluginMcpSkipped, project, user, cloud, loaded: Boolean(source), source };
 }
 
+// A claude.ai session linked to the user's computer relays that computer's MCP servers into
+// the session under the remote-devices prefix: the plugin's `rea` server running in Claude
+// Desktop shows up as mcp__remote-devices__plugin_rea_rea__open_binary and so on. Hooks
+// cannot see the tool list, so they describe this name and let Claude check for it.
+const LINKED_TOOL_PREFIX = 'mcp__remote-devices__plugin_rea_rea__';
+
+// Files written into a directory that is not under git do not outlive a cloud container.
+function insideGitRepo(dir) {
+  let d = path.resolve(dir || process.cwd());
+  for (;;) {
+    if (fs.existsSync(path.join(d, '.git'))) return true;
+    const up = path.dirname(d);
+    if (up === d) return false;
+    d = up;
+  }
+}
+
 module.exports = {
   VERSIONS,
   mcpRegistration,
+  LINKED_TOOL_PREFIX,
+  insideGitRepo,
   GHIDRA_DIR_NAME,
   JDK_DIR_NAME,
   RADARE2_DIR_NAME,
