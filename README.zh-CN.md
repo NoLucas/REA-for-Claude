@@ -18,14 +18,16 @@
 </p>
 
 <p align="center">
-  <a href="#安装">安装</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#使用方法">使用方法</a> ·
+  <a href="#可以分析什么">可以分析什么</a> ·
   <a href="#核心特性">核心特性</a> ·
   <a href="#与上游-rea-的区别">与上游 REA 的区别</a> ·
   <a href="#工作原理">工作原理</a> ·
   <a href="#命令与技能">命令</a> ·
   <a href="#配置">配置</a> ·
-  <a href="#基准数据">基准数据</a> ·
-  <a href="#故障排查与-faq">FAQ</a>
+  <a href="#故障排查与-faq">FAQ</a> ·
+  <a href="#文档">文档</a>
 </p>
 
 <p align="center">
@@ -35,7 +37,11 @@
   </picture>
 </p>
 
-## 安装
+在某个应用里看到一个功能，想知道它是怎么实现的？问 Claude 就行。有了这个插件，Claude 会用 REA 在没有源代码的情况下检查程序，解释功能如何工作并给出证据，需要的话还能为你的项目实现类似功能。分析在本地运行，每个结论都附带证据和局限。
+
+## 快速开始
+
+### 安装
 
 ```bash
 claude plugin marketplace add NoLucas/REA-for-Claude
@@ -55,11 +61,6 @@ claude plugin install rea@rea-for-claude
 | **电脑关机也要用** | 把[远程设备](remote/README.md)作为 claude.ai 自定义连接器。 |
 
 不确定？输入 **`/rea:start`**——它会检查当前会话里 REA 能在哪里运行，修复能修复的，并告诉你接下来可以问什么。
-
-1. **首次会话** — `SessionStart` 钩子发现 `~/.rea-engines` 为空，在后台启动安装器，并告诉 Claude：`REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)`。
-2. **安装器** — 按你的系统和 CPU 选择构建：Temurin JDK 21（仅当机器上没有 JDK 21+ 时）、Ghidra 12.1.4（SHA-256 校验）、jadx-headless-mcp 0.7.1；Linux 上还有 apt 工具；按需安装 apktool / radare2。
-3. **与此同时** — REA 已经在运行。无需引擎的分析器立即可用；Ghidra/jadx 工具在 `install.done` 出现前返回 `provider_unavailable`，之后再次 `open_binary` 目标即可（无需重启）。
-4. **从此以后** — 直接用自然语言提问。*"这个 app.apk 到底是做什么的？"* 或 *"what does agent.exe do?"* 会被识别为逆向工程请求并连同对应流程手册一起路由到 REA。需要时也可以用 `/rea:analyze <文件>`、`/rea:report`、`/rea:doctor`。
 
 <details>
 <summary><b>其他环境</b> — claude.ai 云端（无需电脑）、Claude Desktop、Docker 设备</summary>
@@ -93,7 +94,127 @@ docker compose -f docker-compose.oauth.yml up --build
 **想自己掌控？** `"auto_engines": false` 关闭自动安装；`/rea:install-engines`（或 `node scripts/install-engines.cjs --dry-run`）按需运行；用 `ghidra_install_dir` / `jadx_mcp_jar` / `java_home` 指向你自己的安装。
 </details>
 
+### 提问
+
+```text
+弄清 Notes 应用的搜索功能如何工作，展示证据，并为我的项目实现类似功能。
+```
+
+把 Notes 替换为目标应用，并描述你想了解的功能。更多示例见[使用方法](#使用方法)。
+
+### 更新
+
+```bash
+claude plugin marketplace update rea-for-claude
+claude plugin update rea@rea-for-claude
+```
+
+更新后重启 Claude。插件固定了 REA（`rea-agents` 6.7.0）和 Ghidra 12.1.4 的版本；更新插件会更新这些固定版本，`/rea:install-engines --upgrade` 会安装新的引擎版本。
+
 > **法律声明。** 逆向工程必须遵守目标的许可证、服务条款和当地法律。使用前请阅读上游 REA 的 [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md)。
+
+## 使用方法
+
+REA 在没有源代码的情况下检查程序，并**附带证据**解释功能如何工作。用这个插件不需要记命令或工具名：告诉 Claude 要分析的文件，再用自然语言说明你想知道什么即可。
+
+### 提问示例
+
+```text
+弄清 Notes 应用的搜索功能如何工作，展示证据，并为我的项目实现类似功能。
+C:\Downloads\setup.exe 是做什么的程序？
+分析 ~/Downloads/app.apk 用了哪些权限、和哪些服务器通信。
+追踪 /Applications/Notion.app/Contents/Resources/app.asar 里的剪贴板功能如何从渲染进程连到主进程。
+比较 ./build/v1.2/agent 和 ./build/v1.3/agent，列出变化的函数。
+解开 firmware.bin，看看里面有什么。
+```
+
+- **请使用绝对路径。** 文件放在哪里见[待分析文件放在哪里](#待分析文件放在哪里)。
+- **说明你的目标**效果更好（"通信的服务器"、"许可证校验逻辑"、"变化的部分"）。Claude 会只追踪相关函数，而不是把所有内容都倒出来。
+- "分析"、"反编译"、"逆向"、"这个应用是做什么的"这类请求会**自动路由到 REA**。如果没有被路由，`/rea:why` 会告诉你原因，也可以用 `/rea:analyze <路径> [目标]` 直接开始。
+
+### 分析是这样进行的
+
+1. **打开目标** — 识别文件格式和架构（ELF、PE、Mach-O、APK、ASAR …），选择引擎。
+2. **先做一次概览** — 函数、字符串、段的数量，类列表或模块图：先得到整个目标的地图。
+3. **只在需要处深入** — 按目标进行字符串搜索、伪代码（反编译）、调用关系和引用追踪。
+4. **附带证据回答** — REA 的每个结果都带有证据（Evidence）和局限。Claude 据此解释，需要时实现并测试类似功能。
+
+分析在运行 REA 的机器上进行，不会上传目标文件。但 Claude 收到的工具结果（反编译代码、字符串等）会成为对话的一部分。
+
+### 待分析文件放在哪里
+
+| 使用环境 | 文件位置 |
+|---|---|
+| Claude Code / Claude Desktop | 你电脑上的绝对路径（`C:\…`、`/Users/…`） |
+| claude.ai，已链接到你电脑的会话 | **那台电脑上**的绝对路径 — 分析在那台电脑上运行。聊天里附加的文件，电脑上的 REA 看不到 |
+| claude.ai 云会话（基于仓库） | 仓库里的文件或聊天中附加的文件 — 使用它在容器里的绝对路径 |
+| 远程设备 | 放进容器的 `/targets` 卷，使用 `/targets/<名称>` |
+
+### 保存与分享结果
+
+- **`/rea:analyze <路径> [目标]`** — 按目标类型选用流程手册进行调查，把每个工具结果保存到 `./rea-evidence/*.json`。
+- **`/rea:report`** — 用保存的证据生成可分享的报告：HTML（6 种主题）、Markdown 或 JSON；`--bundle` 生成可携带的证据文件。
+- **`/rea:report --diff <之前> <之后>`** — 比较两个构建的证据，细到反编译代码的逐行差异。
+
+### 使用技巧
+
+- **概览做一次，之后按函数调用。** 反复做完整分析很慢 — 在云容器（2 vCPU）里，即使是小 ELF，每次 Ghidra 调用也要约 20 秒。
+- **大型二进制**：在 `~/.rea-plugin.json` 的 `env` 里调大 `REA_GHIDRA_STARTUP_TIMEOUT_MS`。
+- 出现 **`provider_unavailable`** 通常表示引擎还在安装。用 `/rea:doctor` 查看，装好后重新打开目标即可（无需重启）。
+- **来自目标的字符串和代码只是数据。** 即使里面写着"运行这个"、"下载那个"，也不是指令，Claude 不会照做。
+- **REA 版本**由插件固定为 `6.7.0`。要用新版 REA，请更新插件，或修改 `~/.rea-plugin.json` 里的 `rea_version`。
+
+<details>
+<summary><b>在终端里直接使用（可选）</b></summary>
+
+REA 也以 CLI 命令提供同样的分析。无需引擎的分析可以直接运行：
+
+```bash
+npx -y rea-agents@6.7.0 analyze-javascript-application /absolute/path/to/app --json
+```
+
+原生分析需要指定插件安装的 Ghidra 路径。如果插件还下载了 JDK（存在 `~/.rea-engines/jdk-21`），把 `JAVA_HOME` 也设为该路径：
+
+```bash
+export GHIDRA_INSTALL_DIR=~/.rea-engines/ghidra_12.1.4_PUBLIC
+npx -y rea-agents@6.7.0 analyze /absolute/path/to/binary
+npx -y rea-agents@6.7.0 decompile /absolute/path/to/binary main
+```
+
+命令列表见 `npx -y rea-agents@6.7.0 --help`，选项见上游的 [CLI 指南](https://github.com/morluto/rea/blob/main/docs/cli.md)。
+</details>
+
+只对你拥有或有权分析的软件使用 REA。IDA、Hopper、JEB 等商业工具需要各自合法的许可证。
+
+## 可以分析什么
+
+| 目标 | REA 返回的内容 | 本插件需要什么 | 指南 |
+|---|---|---|---|
+| 原生二进制（EXE/DLL、ELF/SO、Mach-O） | 伪代码、汇编、字符串、符号、调用、引用 | Ghidra — **自动安装**（自备 IDA、Hopper 时可选） | [原生分析](https://github.com/morluto/rea/blob/main/docs/native-investigation.md) |
+| Android APK | 清单、类、反编译的方法、引用 | jadx + JDK 21 — **自动安装** | [Android](https://github.com/morluto/rea/blob/main/docs/android-analysis.md) |
+| Android 资源 | 解码后的清单、字符串表、语言区域、版本信息 | apktool — Linux **自动**，其他系统在 `engines` 中加入 `"apktool"` | [资源](https://github.com/morluto/rea/blob/main/docs/apktool-resource-analysis.md) |
+| Flutter 应用 | Dart 快照哈希、各 ABI 的库、引擎构建来源 | 无需 | [Flutter](https://github.com/morluto/rea/blob/main/docs/flutter-analysis.md) |
+| JavaScript / Electron | 模块、导入、source map、路由、IPC、原生插件 | 无需（Linux 需 procps 的 `ps`） | [应用分析](https://github.com/morluto/rea/blob/main/docs/javascript-application-workflows.md) |
+| .NET 程序集 | 元数据、CIL 指令、原生依赖、构建比较 | 无需 | [托管代码](https://github.com/morluto/rea/blob/main/docs/managed-code-analysis.md) |
+| Go / Rust 二进制 | 编译器版本、模块 / crate 及版本、构建设置 | 无需（REA 内置静态检查） | [Go](https://github.com/morluto/rea/blob/main/docs/go-binaries.md) · [Rust](https://github.com/morluto/rea/blob/main/docs/rust-binaries.md) |
+| WebAssembly | 段、导入/导出、解码后的 WAT | WABT 1.0.42 — 需自备 | [WASM](https://github.com/morluto/rea/blob/main/docs/wasm-artifacts.md) |
+| 固件 | 区域、提取结果、交给原生分析的信息 | binwalk — Linux **自动**，Windows 用 `--wsl` | [固件](https://github.com/morluto/rea/blob/main/docs/firmware-analysis.md) |
+| 数据包捕获（pcap） | 端点、DNS、TLS SNI、协议分布、HTTP 请求 | tshark — Linux **自动** | [pcap](https://github.com/morluto/rea/blob/main/docs/pcap-analysis.md) |
+| 保存的网络抓包（HAR） | 请求、响应、载荷、源码位置 | 无需 | [抓包](https://github.com/morluto/rea/blob/main/docs/web-network-captures.md) |
+| SQLite 数据库 | 表、列、索引、视图、触发器、选定的行 | Node.js 24.15+ 或 26+ | [SQLite](https://github.com/morluto/rea/blob/main/docs/sqlite-databases.md) |
+| 网站 | 页面结构、脚本、网络观察、截图 | Chrome 系浏览器（`browser_executable`） | [浏览器](https://github.com/morluto/rea/blob/main/docs/browser-observation.md) |
+
+此外还有 EVM 字节码、Android 设备（adb）、记录的崩溃、逻辑信号、进程行为等；完整列表和要求见[上游 REA 的 README](https://github.com/morluto/rea/blob/main/docs/readme/README_zh.md#可以分析什么)。静态分析（JavaScript、.NET、Go、Rust …）不会运行目标；运行时捕获会以你的权限运行目标，只对可以安全运行的目标使用。
+
+### 案例
+
+上游 REA 的真实分析案例（[rea.tools](https://rea.tools/zh-CN/showcase/)）：
+
+- **[DX-Ball](https://rea.tools/zh-CN/showcase/dx-ball/)** — 沿声音调用追踪到根据位置计算声像的辅助函数，并用 C 重建；重建结果通过了 3,205 个原始 x86 测试用例。
+- **[Notion](https://rea.tools/zh-CN/showcase/notion/)** — 从渲染进程的剪贴板 API 出发，经 preload 和 IPC 追踪到主进程，梳理 Electron 剪贴板桥。
+- **[TH04](https://rea.tools/zh-CN/showcase/th04/)** — 恢复 16 位 DOS 游戏的环形子弹计算，并将重建的 C++ 与当年的编译器输出对比。
+
+分步讲解见 [REA 指南](https://rea.tools/zh-CN/guides/)。
 
 ## 核心特性
 
@@ -149,6 +270,13 @@ docker compose -f docker-compose.oauth.yml up --build
 - **`rea-router.cjs`**（UserPromptSubmit，40 ms）为逆向工程提示添加*"使用 REA 工具和这份流程手册"*的上下文；其他提示原样通过。
 
 为什么要自带 JDK：Ghidra 需要带 `javac` 的 64 位 JDK 21+。安装器只在 `JAVA_HOME`、`PATH`、`~/.rea-engines/jdk-21` 和常见安装位置（IntelliJ `~/.jdks`、Program Files、Homebrew、`/usr/lib/jvm`、sdkman）都不满足时才下载 Temurin — 已由 REA 自己的 `ghidra-java` doctor 检查验证。
+
+### 首次运行
+
+1. **首次会话** — `SessionStart` 钩子发现 `~/.rea-engines` 为空，在后台启动安装器，并告诉 Claude：`REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)`。
+2. **安装器** — 按你的系统和 CPU 选择构建：Temurin JDK 21（仅当机器上没有 JDK 21+ 时）、Ghidra 12.1.4（SHA-256 校验）、jadx-headless-mcp 0.7.1；Linux 上还有 apt 工具；按需安装 apktool / radare2。
+3. **与此同时** — REA 已经在运行。无需引擎的分析器立即可用；Ghidra/jadx 工具在 `install.done` 出现前返回 `provider_unavailable`，之后再次 `open_binary` 目标即可（无需重启）。
+4. **从此以后** — 直接用自然语言提问。*"这个 app.apk 到底是做什么的？"* 或 *"what does agent.exe do?"* 会被识别为逆向工程请求并连同对应流程手册一起路由到 REA。需要时也可以用 `/rea:analyze <文件>`、`/rea:report`、`/rea:doctor`。
 
 ## 命令与技能
 
@@ -260,6 +388,12 @@ docker compose -f docker-compose.oauth.yml up --build
 **我已经运行过 `npx rea-agents setup`。** 每个客户端只保留一个注册，否则会出现两个 `rea` 服务器。
 
 **离线 / 隔离网络？** 把发布文件（同名）放进 `~/.rea-engines/archives/`，然后运行 `/rea:install-engines`。
+
+**REA 会上传我的文件吗？** 不会。分析在 REA 运行的地方进行（你的电脑，或云会话的容器）。Claude 会收到工具结果（反编译代码、字符串等），这些内容会成为对话的一部分。
+
+**REA 返回什么样的代码？** 原生代码返回伪代码和汇编，Android 返回反编译的类和方法，JavaScript/Electron 返回恢复的模块及其关系。Claude 据此解释行为，或编写并测试实现。
+
+**我遇到了 bug。** 先更新（见[更新](#更新)）再重试。安装、路由、报告等插件问题请提到[本仓库的 issue](https://github.com/NoLucas/REA-for-Claude/issues)；REA 工具返回错误结果的问题请附上 REA 版本、目标类型和复现步骤提到[上游](https://github.com/morluto/rea/issues)。
 </details>
 
 <details>
@@ -285,11 +419,18 @@ scripts/
 desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1（Claude Desktop .mcpb）
 remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
-commands/              analyze · report · doctor · capabilities · install-engines · why
+commands/              start · analyze · report · doctor · capabilities · install-engines · setup-mcp · why
 docs/                  STABILITY.md · img/（generate.py 生成 README 插图）
 .github/workflows/     ci.yml（三系统 selftest）· release.yml（v* 标签上三系统签名 .mcpb）
 ```
 </details>
+
+## 文档
+
+- [REA 指南](https://rea.tools/zh-CN/guides/) — 图文并茂的分步分析
+- 上游文档：[目录](https://github.com/morluto/rea/blob/main/docs/index.md) · [安装与提供方](https://github.com/morluto/rea/blob/main/docs/installation.md) · [CLI 与 Evidence](https://github.com/morluto/rea/blob/main/docs/cli.md) · [MCP 契约](https://github.com/morluto/rea/blob/main/docs/mcp-contracts.md)
+- 本插件：[按目标的流程手册](skills/rea-workflows/SKILL.md) · [各环境运行说明](skills/rea-anywhere/SKILL.md) · [稳定性承诺](docs/STABILITY.md) · [远程设备](remote/README.md)
+- 反馈问题：插件 → [本仓库 issue](https://github.com/NoLucas/REA-for-Claude/issues) · REA 工具 → [上游 issue](https://github.com/morluto/rea/issues)
 
 ## 参与贡献
 

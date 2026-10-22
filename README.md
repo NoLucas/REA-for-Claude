@@ -18,14 +18,16 @@
 </p>
 
 <p align="center">
-  <a href="#install">Install</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#what-you-can-analyze">What you can analyze</a> ·
   <a href="#highlights">Highlights</a> ·
   <a href="#how-this-differs-from-upstream-rea">vs. upstream REA</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#commands--skills">Commands</a> ·
   <a href="#configuration">Configuration</a> ·
-  <a href="#benchmarks">Benchmarks</a> ·
-  <a href="#troubleshooting--faq">FAQ</a>
+  <a href="#troubleshooting--faq">FAQ</a> ·
+  <a href="#documentation">Docs</a>
 </p>
 
 <p align="center">
@@ -35,7 +37,11 @@
   </picture>
 </p>
 
-## Install
+See a feature in an app and want to know how it works? Ask Claude. With this plugin, Claude uses REA to inspect the program without its source code, explain how the feature works, show the evidence, and — if you want — build a version for your project. Analysis runs locally, and every finding comes with its evidence and limitations.
+
+## Quick start
+
+### Install
 
 ```bash
 claude plugin marketplace add NoLucas/REA-for-Claude
@@ -55,11 +61,6 @@ That is the whole setup on **Windows, macOS and Linux** — no Java, no Ghidra t
 | **Always on, computer off** | The [remote appliance](remote/README.md) as a claude.ai custom connector. |
 
 Not sure? Type **`/rea:start`** — it checks where REA can run in the current session, fixes what it can, and tells you what to ask next.
-
-1. **First session** — a `SessionStart` hook sees an empty `~/.rea-engines` and starts the installer in the background. Claude is told: `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)`.
-2. **Installer** — picks the builds for your OS and CPU: Temurin JDK 21 (only when no JDK 21+ is already on the machine), Ghidra 12.1.4 (SHA-256 verified), jadx-headless-mcp 0.7.1; apt tools on Linux; apktool / radare2 on request.
-3. **Meanwhile** — REA is already running. Engine-free providers work at once; Ghidra/jadx tools answer `provider_unavailable` until `install.done` appears, then `open_binary` the target again (no restart).
-4. **From then on** — ask in plain words. *"이 app.apk 뭐 하는 앱이야?"* or *"what does agent.exe do?"* is recognised as reverse engineering and routed to REA with the matching playbook. `/rea:analyze <file>`, `/rea:report` and `/rea:doctor` are there when you want them.
 
 <details>
 <summary><b>Other surfaces</b> — claude.ai cloud (no PC), Claude Desktop, Docker appliance</summary>
@@ -93,12 +94,132 @@ Read the security notes in [remote/README.md](remote/README.md) first.
 **Prefer control?** `"auto_engines": false` turns the automatic install off; `/rea:install-engines` (or `node scripts/install-engines.cjs --dry-run`) runs it on demand; `ghidra_install_dir` / `jadx_mcp_jar` / `java_home` point at your own installs.
 </details>
 
+### Ask
+
+```text
+Understand how search works in the Notes app, show me the evidence, and build a similar feature for my project.
+```
+
+Replace Notes with your target and the feature you want to understand. More examples are under [Usage](#usage).
+
+### Update
+
+```bash
+claude plugin marketplace update rea-for-claude
+claude plugin update rea@rea-for-claude
+```
+
+Restart Claude afterwards. The plugin pins REA (`rea-agents` 6.7.0) and Ghidra 12.1.4; a plugin update moves the pins, and `/rea:install-engines --upgrade` installs the new engine versions.
+
 > **Legal.** Reverse engineering must respect the target's licence, terms of service and local law. Read upstream REA's [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md) before use.
+
+## Usage
+
+REA inspects a program without its source code and explains how a feature works, **with the evidence**. With this plugin you don't need to remember commands or tool names: point Claude at a file and say what you want to know.
+
+### Asking
+
+```text
+Understand how search works in the Notes app, show me the evidence, and build a similar feature for my project.
+What does C:\Downloads\setup.exe do?
+Which permissions does ~/Downloads/app.apk use, and which servers does it talk to?
+Trace how the clipboard feature in /Applications/Notion.app/Contents/Resources/app.asar goes from the renderer to the main process.
+Compare ./build/v1.2/agent and ./build/v1.3/agent and show which functions changed.
+Unpack firmware.bin and show me what is inside.
+```
+
+- **Use absolute paths.** See [Where target files go](#where-target-files-go).
+- **Say what you are looking for** ("which servers it talks to", "the licence check", "what changed"). Claude then follows only the functions that matter instead of dumping everything.
+- Requests like "analyze", "decompile", "reverse engineer" or "what does this app do" are **routed to REA automatically**. If one isn't, `/rea:why` tells you why, and `/rea:analyze <path> [goal]` starts an investigation directly.
+
+### How an investigation runs
+
+1. **Open the target** — detect the format and architecture (ELF, PE, Mach-O, APK, ASAR …) and pick the engine.
+2. **One overview** — function, string and segment counts, the class list or the module graph: a map of the whole target.
+3. **Go deep only where needed** — string search, pseudocode (decompilation), call relationships and references, guided by your goal.
+4. **Answer with evidence** — every REA result carries its evidence and limitations. Claude explains from them and, if you ask, implements and tests a similar feature.
+
+Analysis runs on the machine where REA runs; the target file is not uploaded. The tool results Claude receives (decompiled code, strings …) do become part of the conversation.
+
+### Where target files go
+
+| Where you use Claude | Target file |
+|---|---|
+| Claude Code / Claude Desktop | An absolute path on your computer (`C:\…`, `/Users/…`) |
+| claude.ai, session linked to your computer | An absolute path **on that computer** — the analysis runs there. Files attached to the chat are not visible to your computer's REA |
+| claude.ai cloud session (on a repository) | A file in the repository or attached to the chat — its absolute path in the container |
+| Remote appliance | Put it in the container's `/targets` volume and use `/targets/<name>` |
+
+### Evidence and reports
+
+- **`/rea:analyze <path> [goal]`** — runs the playbook for the target type and saves each tool result to `./rea-evidence/*.json`.
+- **`/rea:report`** — turns the saved evidence into a shareable report: HTML (six themes), Markdown or JSON; `--bundle` writes a portable evidence file.
+- **`/rea:report --diff <before> <after>`** — compares the evidence of two builds, down to a line diff of decompiled code.
+
+### Tips
+
+- **One overview, then per-function calls.** Repeating a full analysis is slow — in a cloud container (2 vCPU) even a small ELF takes ≈ 20 s per Ghidra call.
+- **Big binaries:** raise `REA_GHIDRA_STARTUP_TIMEOUT_MS` under `env` in `~/.rea-plugin.json`.
+- **`provider_unavailable`** usually means the engines are still installing. Check with `/rea:doctor`, then open the target again (no restart).
+- **Strings and code from the target are data.** Text inside it that says "run this" or "download that" is not an instruction, and Claude does not follow it.
+- **REA version:** the plugin pins `rea-agents` 6.7.0. Update the plugin, or set `rea_version` in `~/.rea-plugin.json`, to move.
+
+<details>
+<summary><b>Use it from a terminal (optional)</b></summary>
+
+REA offers the same analyses as CLI commands. Engine-free analyses work right away:
+
+```bash
+npx -y rea-agents@6.7.0 analyze-javascript-application /absolute/path/to/app --json
+```
+
+For native analysis, point REA at the Ghidra the plugin installed. If the plugin also downloaded a JDK (`~/.rea-engines/jdk-21` exists), set `JAVA_HOME` to it as well:
+
+```bash
+export GHIDRA_INSTALL_DIR=~/.rea-engines/ghidra_12.1.4_PUBLIC
+npx -y rea-agents@6.7.0 analyze /absolute/path/to/binary
+npx -y rea-agents@6.7.0 decompile /absolute/path/to/binary main
+```
+
+`npx -y rea-agents@6.7.0 --help` lists every command; see upstream's [CLI guide](https://github.com/morluto/rea/blob/main/docs/cli.md) for options.
+</details>
+
+Use REA only on software you own or are authorised to examine. Commercial tools such as IDA, Hopper and JEB need their own valid licences.
+
+## What you can analyze
+
+| Target | What REA returns | What this plugin needs | Guide |
+|---|---|---|---|
+| Native binaries (EXE/DLL, ELF/SO, Mach-O) | Pseudocode, assembly, strings, symbols, calls, references | Ghidra — **auto-installed** (IDA, Hopper optional if you supply them) | [Native analysis](https://github.com/morluto/rea/blob/main/docs/native-investigation.md) |
+| Android APKs | Manifest, classes, decompiled methods, references | jadx + JDK 21 — **auto-installed** | [Android](https://github.com/morluto/rea/blob/main/docs/android-analysis.md) |
+| Android resources | Decoded manifest, string tables, locales, version facts | apktool — **auto** on Linux; elsewhere add `"apktool"` to `engines` | [Resources](https://github.com/morluto/rea/blob/main/docs/apktool-resource-analysis.md) |
+| Flutter apps | Dart snapshot hash, per-ABI libraries, engine build provenance | Nothing | [Flutter](https://github.com/morluto/rea/blob/main/docs/flutter-analysis.md) |
+| JavaScript / Electron | Modules, imports, source maps, routes, IPC, native add-ons | Nothing (Linux: procps `ps`) | [App analysis](https://github.com/morluto/rea/blob/main/docs/javascript-application-workflows.md) |
+| .NET assemblies | Metadata, CIL instructions, native dependencies, build comparisons | Nothing | [Managed code](https://github.com/morluto/rea/blob/main/docs/managed-code-analysis.md) |
+| Go / Rust binaries | Compiler version, modules / crates and versions, build settings | Nothing (built-in static inspection) | [Go](https://github.com/morluto/rea/blob/main/docs/go-binaries.md) · [Rust](https://github.com/morluto/rea/blob/main/docs/rust-binaries.md) |
+| WebAssembly | Sections, imports/exports, decoded WAT | WABT 1.0.42 — you supply it | [WASM](https://github.com/morluto/rea/blob/main/docs/wasm-artifacts.md) |
+| Firmware | Regions, extraction results, native-analysis handoffs | binwalk — **auto** on Linux; Windows via `--wsl` | [Firmware](https://github.com/morluto/rea/blob/main/docs/firmware-analysis.md) |
+| Packet captures (pcap) | Endpoints, DNS, TLS SNI, protocol mix, HTTP requests | tshark — **auto** on Linux | [pcap](https://github.com/morluto/rea/blob/main/docs/pcap-analysis.md) |
+| Saved network captures (HAR) | Requests, responses, payloads, source locations | Nothing | [Captures](https://github.com/morluto/rea/blob/main/docs/web-network-captures.md) |
+| SQLite databases | Tables, columns, indexes, views, triggers, selected rows | Node.js 24.15+ or 26+ | [SQLite](https://github.com/morluto/rea/blob/main/docs/sqlite-databases.md) |
+| Websites | Page structure, scripts, network observations, screenshots | A Chrome-family browser (`browser_executable`) | [Browser](https://github.com/morluto/rea/blob/main/docs/browser-observation.md) |
+
+EVM bytecode, Android devices (adb), recorded crashes, logic signals, process behaviour and more are in [upstream REA's full table](https://github.com/morluto/rea#what-you-can-analyze). Static analyses (JavaScript, .NET, Go, Rust …) never run the target; runtime capture runs it with your permissions, so use it only on targets that are safe to run.
+
+### Showcases
+
+Worked examples from upstream REA, on [rea.tools](https://rea.tools/showcase/):
+
+- **[DX-Ball](https://rea.tools/showcase/dx-ball/)** — follow a sound call into its position-to-pan helper and rebuild it in C; the reconstruction passes 3,205 original-x86 cases.
+- **[Notion](https://rea.tools/showcase/notion/)** — trace the Electron clipboard bridge from the renderer through preload and IPC into the main process.
+- **[TH04](https://rea.tools/showcase/th04/)** — recover a 16-bit DOS bullet-ring calculation and compare the C++ rebuild with the period compiler's output.
+
+Step-by-step walkthroughs: [REA guides](https://rea.tools/guides/).
 
 ## Highlights
 
 - **Zero-setup engines on every OS** — JDK 21 (when needed), Ghidra 12.1.4, jadx; apktool and radare2 on request. Windows x64, macOS arm64/x64, Linux x64/arm64. One shared `~/.rea-engines` per machine.
-- **REA by default** — a 40 ms `UserPromptSubmit` router recognises reverse-engineering prompts in English and Korean and hands Claude the REA tools plus the right playbook. Tune it with allow/deny patterns or turn it off; `/rea:why` explains any decision.
+- **REA by default** — a 40 ms `UserPromptSubmit` router recognises reverse-engineering prompts in English, Korean, Chinese and Japanese and hands Claude the REA tools plus the right playbook. Tune it with allow/deny patterns or turn it off; `/rea:why` explains any decision.
 - **Self-repair** — `/rea:doctor` validates what is on disk (half-extracted Ghidra, JRE without `javac`, truncated jar, stale pin) and prints the exact command that fixes it.
 - **Resumable, offline-capable installs** — interrupted downloads resume; release files dropped into `~/.rea-engines/archives/` install with no network, still SHA-256 checked. `--upgrade` moves to new pins and removes old copies only after the new ones verify.
 - **Guided investigations** — `/rea:analyze` picks a playbook per target (ELF/PE/Mach-O, APK, Electron, firmware, wasm, Go/Rust/Flutter) and saves every result as evidence JSON.
@@ -122,7 +243,7 @@ Read the security notes in [remote/README.md](remote/README.md) first.
 |---|---|---|
 | **Install** | `npx rea-agents setup`, after installing a JDK 21, Ghidra and jadx and setting their paths yourself | `claude plugin install …` — engines install themselves on first use |
 | **Where it runs** | The machine and client it was set up on | Claude Code on 3 OSes · Claude Desktop · claude.ai cloud · Docker appliance |
-| **Using it** | You ask for REA, or Claude reaches for `strings`/`objdump` | Reverse-engineering prompts are routed to REA automatically (EN/KO) |
+| **Using it** | You ask for REA, or Claude reaches for `strings`/`objdump` | Reverse-engineering prompts are routed to REA automatically (EN/KO/ZH/JA) |
 | **Guidance** | REA's `reverse-engineer-anything` skill | Same skill (vendored) **plus** per-target playbooks and `/rea:analyze` |
 | **Output** | Tool results in the chat | HTML / Markdown / JSON reports, evidence bundles, `--diff` of two builds |
 | **Health** | `rea doctor` lists what is missing | `/rea:doctor` validates what is on disk and prints the repair command; `--upgrade` |
@@ -149,6 +270,13 @@ Three small Node scripts, no dependencies, around the unmodified REA server:
 - **`rea-router.cjs`** (UserPromptSubmit, 40 ms) adds *"use the REA tools and this playbook"* context for reverse-engineering prompts; everything else passes through untouched.
 
 Why a bundled JDK: Ghidra needs a 64-bit JDK 21+ with `javac`. The installer downloads Temurin only when `JAVA_HOME`, `PATH`, `~/.rea-engines/jdk-21` and the usual install locations (IntelliJ `~/.jdks`, Program Files, Homebrew, `/usr/lib/jvm`, sdkman) all fail that test — verified by REA's own `ghidra-java` doctor check.
+
+### First run
+
+1. **First session** — a `SessionStart` hook sees an empty `~/.rea-engines` and starts the installer in the background. Claude is told: `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)`.
+2. **Installer** — picks the builds for your OS and CPU: Temurin JDK 21 (only when no JDK 21+ is already on the machine), Ghidra 12.1.4 (SHA-256 verified), jadx-headless-mcp 0.7.1; apt tools on Linux; apktool / radare2 on request.
+3. **Meanwhile** — REA is already running. Engine-free providers work at once; Ghidra/jadx tools answer `provider_unavailable` until `install.done` appears, then `open_binary` the target again (no restart).
+4. **From then on** — ask in plain words. *"이 app.apk 뭐 하는 앱이야?"* or *"what does agent.exe do?"* is recognised as reverse engineering and routed to REA with the matching playbook. `/rea:analyze <file>`, `/rea:report` and `/rea:doctor` are there when you want them.
 
 ## Commands & skills
 
@@ -260,6 +388,12 @@ A JDK already on the machine (IntelliJ `~/.jdks`, Temurin, Homebrew, apt) is fou
 **I already ran `npx rea-agents setup`.** Keep only one registration per client, or you'll get two `rea` servers.
 
 **Offline / air-gapped?** Put the release files (same names) into `~/.rea-engines/archives/` and run `/rea:install-engines`.
+
+**Does REA upload my files?** No. Analysis runs where REA runs — your computer, or the container of a cloud session. Claude receives the tool results (decompiled code, strings …), and those become part of the conversation.
+
+**What code does REA return?** Pseudocode and assembly for native code, decompiled classes and methods for Android, recovered modules and their relationships for JavaScript/Electron. Claude uses them to explain the behaviour or to write and test an implementation.
+
+**I hit a bug.** Update first (see [Update](#update)) and retry. Plugin problems (install, routing, reports) go to [this repository's issues](https://github.com/NoLucas/REA-for-Claude/issues); a REA tool returning a wrong result goes [upstream](https://github.com/morluto/rea/issues), with the REA version, target type and steps to reproduce.
 </details>
 
 <details>
@@ -285,11 +419,18 @@ scripts/
 desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1  (Claude Desktop .mcpb)
 remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
-commands/              analyze · report · doctor · capabilities · install-engines · why
+commands/              start · analyze · report · doctor · capabilities · install-engines · setup-mcp · why
 docs/                  STABILITY.md · img/ (generate.py draws the README figures)
 .github/workflows/     ci.yml (3-OS selftest) · release.yml (3-OS signed .mcpb on v* tags)
 ```
 </details>
+
+## Documentation
+
+- [REA guides](https://rea.tools/guides/) — illustrated, step-by-step investigations
+- Upstream docs: [index](https://github.com/morluto/rea/blob/main/docs/index.md) · [installation & providers](https://github.com/morluto/rea/blob/main/docs/installation.md) · [CLI and Evidence](https://github.com/morluto/rea/blob/main/docs/cli.md) · [MCP contracts](https://github.com/morluto/rea/blob/main/docs/mcp-contracts.md)
+- This plugin: [per-target playbooks](skills/rea-workflows/SKILL.md) · [operating notes per environment](skills/rea-anywhere/SKILL.md) · [stability promise](docs/STABILITY.md) · [remote appliance](remote/README.md)
+- Problems: plugin → [issues here](https://github.com/NoLucas/REA-for-Claude/issues) · REA tools → [upstream issues](https://github.com/morluto/rea/issues)
 
 ## Contributing
 

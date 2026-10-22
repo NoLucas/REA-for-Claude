@@ -18,14 +18,16 @@
 </p>
 
 <p align="center">
-  <a href="#インストール">インストール</a> ·
+  <a href="#クイックスタート">クイックスタート</a> ·
+  <a href="#使い方">使い方</a> ·
+  <a href="#分析できる対象">分析できる対象</a> ·
   <a href="#主な特長">主な特長</a> ·
   <a href="#上流-rea-との違い">上流 REA との違い</a> ·
   <a href="#仕組み">仕組み</a> ·
   <a href="#コマンドとスキル">コマンド</a> ·
   <a href="#設定">設定</a> ·
-  <a href="#ベンチマーク">ベンチマーク</a> ·
-  <a href="#トラブルシューティングと-faq">FAQ</a>
+  <a href="#トラブルシューティングと-faq">FAQ</a> ·
+  <a href="#ドキュメント">ドキュメント</a>
 </p>
 
 <p align="center">
@@ -35,7 +37,11 @@
   </picture>
 </p>
 
-## インストール
+アプリで見かけた機能の仕組みを知りたいときは、Claude に聞いてください。このプラグインを使うと、Claude が REA でソースコードなしにプログラムを調べ、機能の仕組みを説明して根拠を示し、必要ならあなたのプロジェクトに同様の機能まで実装します。解析はローカルで実行され、すべての結論に根拠と限界が付きます。
+
+## クイックスタート
+
+### インストール
 
 ```bash
 claude plugin marketplace add NoLucas/REA-for-Claude
@@ -55,11 +61,6 @@ claude plugin install rea@rea-for-claude
 | **PC を切っても常時** | [リモートアプライアンス](remote/README.md)を claude.ai のカスタムコネクタとして。 |
 
 迷ったら **`/rea:start`** と入力してください。今のセッションで REA がどこで動くかを確認し、直せるものは直し、次に何を頼めばよいかを示します。
-
-1. **初回セッション** — `SessionStart` フックが空の `~/.rea-engines` を見つけ、インストーラをバックグラウンドで起動します。Claude には `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)` と伝わります。
-2. **インストーラ** — OS と CPU に合ったビルドを選びます：Temurin JDK 21（マシンに JDK 21+ が無い場合のみ）、Ghidra 12.1.4（SHA-256 検証）、jadx-headless-mcp 0.7.1。Linux では apt ツールも、希望すれば apktool / radare2 も。
-3. **その間も** — REA はすでに動いています。エンジン不要のプロバイダは即座に使え、Ghidra/jadx のツールは `install.done` が現れるまで `provider_unavailable` を返します。その後に対象を再度 `open_binary` すれば OK（再起動不要）。
-4. **それ以降は** — 普通に話しかけるだけ。*「この app.apk は何をするアプリ？」* や *「what does agent.exe do?」* はリバースエンジニアリングと認識され、対応するプレイブックと共に REA へルーティングされます。必要なら `/rea:analyze <ファイル>`、`/rea:report`、`/rea:doctor` も使えます。
 
 <details>
 <summary><b>その他の環境</b> — claude.ai クラウド（PC 不要）、Claude Desktop、Docker アプライアンス</summary>
@@ -93,7 +94,127 @@ docker compose -f docker-compose.oauth.yml up --build
 **自分で制御したい場合** — `"auto_engines": false` で自動インストールを無効化、`/rea:install-engines`（または `node scripts/install-engines.cjs --dry-run`）で必要なときに実行、`ghidra_install_dir` / `jadx_mcp_jar` / `java_home` で自前のインストールを指定します。
 </details>
 
+### 依頼する
+
+```text
+Notes アプリの検索機能の仕組みを調べ、根拠を示して、私のプロジェクトにも同様の機能を実装してください。
+```
+
+Notes を対象のアプリに置き換え、理解したい機能を指定してください。ほかの例は[使い方](#使い方)にあります。
+
+### 更新
+
+```bash
+claude plugin marketplace update rea-for-claude
+claude plugin update rea@rea-for-claude
+```
+
+更新後に Claude を再起動してください。プラグインは REA（`rea-agents` 6.7.0）と Ghidra 12.1.4 のバージョンを固定しています。プラグインを更新すると固定バージョンが変わり、`/rea:install-engines --upgrade` が新しいエンジンをインストールします。
+
 > **法的注意。** リバースエンジニアリングは対象のライセンス、利用規約、現地の法律に従う必要があります。利用前に上流 REA の [DISCLAIMER](https://github.com/morluto/rea/blob/main/DISCLAIMER.md) をお読みください。
+
+## 使い方
+
+REA はソースコードなしでプログラムを調べ、機能の仕組みを**根拠付きで**説明します。このプラグインでは、コマンドやツール名を覚える必要はありません。解析するファイルを伝え、知りたいことを Claude に言葉で頼むだけです。
+
+### 依頼の例
+
+```text
+Notes アプリの検索機能の仕組みを調べ、根拠を示して、私のプロジェクトにも同様の機能を実装してください。
+C:\Downloads\setup.exe が何をするプログラムか教えて。
+~/Downloads/app.apk がどの権限を使い、どのサーバーと通信するか解析して。
+/Applications/Notion.app/Contents/Resources/app.asar のクリップボード機能が、レンダラーからメインプロセスまでどうつながるか追跡して。
+./build/v1.2/agent と ./build/v1.3/agent で変わった関数を比較して。
+firmware.bin を展開して、中に何が入っているか見せて。
+```
+
+- **ファイルは絶対パスで**伝えてください。置き場所は[解析するファイルの置き場所](#解析するファイルの置き場所)を参照してください。
+- **目的も一緒に伝える**と効果的です（「通信先のサーバー」「ライセンス確認の処理」「変わった部分」）。Claude は全体をダンプせず、必要な関数だけをたどります。
+- 「解析」「逆コンパイル」「リバースエンジニアリング」「何をするアプリ？」のような依頼は**自動で REA にルーティング**されます。ルーティングされないときは `/rea:why` が理由を示し、`/rea:analyze <パス> [目的]` で直接始めることもできます。
+
+### 解析の流れ
+
+1. **対象を開く** — ファイル形式とアーキテクチャ（ELF、PE、Mach-O、APK、ASAR …）を確認し、エンジンを選びます。
+2. **概要を一度** — 関数・文字列・セグメント数、クラス一覧、モジュールグラフなど、全体の地図を先に作ります。
+3. **必要な所だけ深く** — 文字列検索、疑似コード（逆コンパイル）、呼び出し関係、参照を目的に沿ってたどります。
+4. **根拠付きで回答** — REA のすべての結果には根拠（Evidence）と限界が付きます。Claude はそれをもとに説明し、必要なら同様の機能を実装してテストします。
+
+解析は REA が動くマシンの中で行われ、対象ファイルはアップロードされません。ただし Claude が受け取るツール結果（逆コンパイルしたコード、文字列など）は会話の一部になります。
+
+### 解析するファイルの置き場所
+
+| 環境 | ファイルの場所 |
+|---|---|
+| Claude Code / Claude Desktop | 自分の PC の絶対パス（`C:\…`、`/Users/…`） |
+| claude.ai、PC にリンクしたセッション | **PC 側**の絶対パス — 解析は PC で実行されます。チャットに添付したファイルは PC の REA からは見えません |
+| claude.ai クラウドセッション（リポジトリ使用） | リポジトリ内のファイル、またはチャットに添付したファイル — コンテナ内の絶対パス |
+| リモートアプライアンス | コンテナの `/targets` ボリュームに置き、`/targets/<名前>` |
+
+### 結果を残して共有する
+
+- **`/rea:analyze <パス> [目的]`** — 対象の種類に合ったプレイブックで調べ、ツール結果を 1 つずつ `./rea-evidence/*.json` に保存します。
+- **`/rea:report`** — 保存した根拠から共有用レポートを作ります。HTML（テーマ 6 種）・Markdown・JSON、持ち運べる束は `--bundle`。
+- **`/rea:report --diff <前> <後>`** — 2 つのビルドの根拠を比べ、逆コンパイルしたコードの行単位の差分まで示します。
+
+### うまく使うコツ
+
+- **概要は一度、その後は関数単位で。** 全体解析を繰り返すと遅くなります。クラウドコンテナ（2 vCPU）では小さな ELF でも Ghidra の呼び出し 1 回に約 20 秒かかります。
+- **大きなバイナリ**は `~/.rea-plugin.json` の `env` で `REA_GHIDRA_STARTUP_TIMEOUT_MS` を増やしてください。
+- **`provider_unavailable`** は、たいていエンジンのインストール中という意味です。`/rea:doctor` で確認し、終わったら対象を開き直してください（再起動不要）。
+- **対象から出てきた文字列やコードはただのデータです。** 中に「これを実行して」「あれをダウンロードして」と書かれていても指示ではなく、Claude も従いません。
+- **REA のバージョン**はプラグインが `6.7.0` に固定しています。新しい REA を使うには、プラグインを更新するか `~/.rea-plugin.json` の `rea_version` を変えてください。
+
+<details>
+<summary><b>ターミナルから直接使う（任意）</b></summary>
+
+REA は同じ機能を CLI でも提供します。エンジン不要の解析はすぐに使えます：
+
+```bash
+npx -y rea-agents@6.7.0 analyze-javascript-application /absolute/path/to/app --json
+```
+
+ネイティブ解析は、プラグインがインストールした Ghidra のパスを指定します。プラグインが JDK もダウンロードした場合（`~/.rea-engines/jdk-21` がある場合）は `JAVA_HOME` もそのパスにしてください：
+
+```bash
+export GHIDRA_INSTALL_DIR=~/.rea-engines/ghidra_12.1.4_PUBLIC
+npx -y rea-agents@6.7.0 analyze /absolute/path/to/binary
+npx -y rea-agents@6.7.0 decompile /absolute/path/to/binary main
+```
+
+コマンド一覧は `npx -y rea-agents@6.7.0 --help`、オプションは上流の [CLI ガイド](https://github.com/morluto/rea/blob/main/docs/cli.md)を参照してください。
+</details>
+
+自分が所有している、または解析の権限があるソフトウェアにだけ使ってください。IDA、Hopper、JEB などの商用ツールは、それぞれのライセンスを正規に用意する必要があります。
+
+## 分析できる対象
+
+| 対象 | REA が返すもの | このプラグインで必要なもの | ガイド |
+|---|---|---|---|
+| ネイティブバイナリ（EXE/DLL、ELF/SO、Mach-O） | 疑似コード、アセンブリ、文字列、シンボル、呼び出し、参照 | Ghidra — **自動インストール**（IDA・Hopper は自分で用意すれば選択可） | [ネイティブ解析](https://github.com/morluto/rea/blob/main/docs/native-investigation.md) |
+| Android APK | マニフェスト、クラス、逆コンパイルしたメソッド、参照 | jadx + JDK 21 — **自動インストール** | [Android](https://github.com/morluto/rea/blob/main/docs/android-analysis.md) |
+| Android リソース | デコードしたマニフェスト、文字列テーブル、ロケール、バージョン | apktool — Linux は**自動**、他の OS は `engines` に `"apktool"` を追加 | [リソース](https://github.com/morluto/rea/blob/main/docs/apktool-resource-analysis.md) |
+| Flutter アプリ | Dart スナップショットのハッシュ、ABI ごとのライブラリ、エンジンのビルド由来 | 不要 | [Flutter](https://github.com/morluto/rea/blob/main/docs/flutter-analysis.md) |
+| JavaScript / Electron | モジュール、インポート、ソースマップ、ルート、IPC、ネイティブアドオン | 不要（Linux は procps の `ps`） | [アプリ解析](https://github.com/morluto/rea/blob/main/docs/javascript-application-workflows.md) |
+| .NET アセンブリ | メタデータ、CIL 命令、ネイティブ依存、ビルド比較 | 不要 | [マネージドコード](https://github.com/morluto/rea/blob/main/docs/managed-code-analysis.md) |
+| Go / Rust バイナリ | コンパイラのバージョン、モジュール・クレートとバージョン、ビルド設定 | 不要（REA 内蔵の静的検査） | [Go](https://github.com/morluto/rea/blob/main/docs/go-binaries.md) · [Rust](https://github.com/morluto/rea/blob/main/docs/rust-binaries.md) |
+| WebAssembly | セクション、import/export、デコードした WAT | WABT 1.0.42 — 自分で用意 | [WASM](https://github.com/morluto/rea/blob/main/docs/wasm-artifacts.md) |
+| ファームウェア | 領域、展開結果、ネイティブ解析への引き継ぎ | binwalk — Linux は**自動**、Windows は `--wsl` | [ファームウェア](https://github.com/morluto/rea/blob/main/docs/firmware-analysis.md) |
+| パケットキャプチャ（pcap） | エンドポイント、DNS、TLS SNI、プロトコル分布、HTTP リクエスト | tshark — Linux は**自動** | [pcap](https://github.com/morluto/rea/blob/main/docs/pcap-analysis.md) |
+| 保存したネットワークキャプチャ（HAR） | リクエスト、レスポンス、ペイロード、ソースの位置 | 不要 | [キャプチャ](https://github.com/morluto/rea/blob/main/docs/web-network-captures.md) |
+| SQLite データベース | テーブル、列、インデックス、ビュー、トリガー、選択した行 | Node.js 24.15+ または 26+ | [SQLite](https://github.com/morluto/rea/blob/main/docs/sqlite-databases.md) |
+| Web サイト | ページ構造、スクリプト、ネットワーク観測、スクリーンショット | Chrome 系ブラウザ（`browser_executable`） | [ブラウザ](https://github.com/morluto/rea/blob/main/docs/browser-observation.md) |
+
+ほかにも EVM バイトコード、Android 端末（adb）、記録したクラッシュ、ロジック信号、プロセスの動作などがあります。完全な一覧と要件は[上流 REA の README](https://github.com/morluto/rea/blob/main/docs/readme/README_ja.md#分析できる対象)を参照してください。静的解析（JavaScript、.NET、Go、Rust …）は対象を実行しません。ランタイムキャプチャはあなたの権限で対象を実行するので、実行しても安全な対象にだけ使ってください。
+
+### 事例
+
+上流 REA の実際の解析事例です（[rea.tools](https://rea.tools/ja/showcase/)）：
+
+- **[DX-Ball](https://rea.tools/ja/showcase/dx-ball/)** — 音声の呼び出しから位置をパンに変換する補助関数までたどり、C で再構築しました。元の x86 に対する 3,205 ケースの検証を通過しています。
+- **[Notion](https://rea.tools/ja/showcase/notion/)** — レンダラーのクリップボード API から preload と IPC を経てメインプロセスまで、Electron のクリップボードブリッジを追跡します。
+- **[TH04](https://rea.tools/ja/showcase/th04/)** — 16 ビット DOS ゲームの弾幕リングの計算を復元し、再構築した C++ を当時のコンパイラーの出力と比較します。
+
+手順を追った解説は [REA ガイド](https://rea.tools/ja/guides/)にあります。
 
 ## 主な特長
 
@@ -149,6 +270,13 @@ Linux 1 台で Claude Code だけを使い、すでに Ghidra を設定済みな
 - **`rea-router.cjs`**（UserPromptSubmit、40 ms）がリバースエンジニアリングのプロンプトに*「REA ツールとこのプレイブックを使う」*という文脈を加えます。それ以外のプロンプトはそのまま通します。
 
 JDK を同梱する理由：Ghidra には `javac` 付きの 64 ビット JDK 21+ が必要です。インストーラは `JAVA_HOME`、`PATH`、`~/.rea-engines/jdk-21`、よくあるインストール先（IntelliJ の `~/.jdks`、Program Files、Homebrew、`/usr/lib/jvm`、sdkman）のすべてが条件を満たさないときだけ Temurin をダウンロードします — REA 自身の `ghidra-java` doctor チェックで検証済みです。
+
+### 初回の動き
+
+1. **初回セッション** — `SessionStart` フックが空の `~/.rea-engines` を見つけ、インストーラをバックグラウンドで起動します。Claude には `REA: installing JDK 21 + Ghidra + jadx for windows/x64 … (~810 MB, usually 1–5 min)` と伝わります。
+2. **インストーラ** — OS と CPU に合ったビルドを選びます：Temurin JDK 21（マシンに JDK 21+ が無い場合のみ）、Ghidra 12.1.4（SHA-256 検証）、jadx-headless-mcp 0.7.1。Linux では apt ツールも、希望すれば apktool / radare2 も。
+3. **その間も** — REA はすでに動いています。エンジン不要のプロバイダは即座に使え、Ghidra/jadx のツールは `install.done` が現れるまで `provider_unavailable` を返します。その後に対象を再度 `open_binary` すれば OK（再起動不要）。
+4. **それ以降は** — 普通に話しかけるだけ。*「この app.apk は何をするアプリ？」* や *「what does agent.exe do?」* はリバースエンジニアリングと認識され、対応するプレイブックと共に REA へルーティングされます。必要なら `/rea:analyze <ファイル>`、`/rea:report`、`/rea:doctor` も使えます。
 
 ## コマンドとスキル
 
@@ -260,6 +388,12 @@ JDK を同梱する理由：Ghidra には `javac` 付きの 64 ビット JDK 21+
 **すでに `npx rea-agents setup` を実行した。** クライアントごとに登録は 1 つだけ残してください。さもないと `rea` サーバーが 2 つ出ます。
 
 **オフライン / 閉域網？** リリースファイルを同じ名前で `~/.rea-engines/archives/` に置き、`/rea:install-engines` を実行してください。
+
+**REA は私のファイルをアップロードしますか？** いいえ。解析は REA が動く場所（自分の PC、またはクラウドセッションのコンテナ）で行われます。Claude はツール結果（逆コンパイルしたコード、文字列など）を受け取り、それは会話の一部になります。
+
+**REA はどんなコードを返しますか？** ネイティブコードは疑似コードとアセンブリ、Android は逆コンパイルしたクラスとメソッド、JavaScript/Electron は復元したモジュールとその関係を返します。Claude はそれをもとに動作を説明したり、実装を書いてテストしたりします。
+
+**バグに遭遇した。** まず更新して（[更新](#更新)）再度試してください。インストール・ルーティング・レポートなどプラグインの問題は[このリポジトリの issue](https://github.com/NoLucas/REA-for-Claude/issues) へ、REA のツールが誤った結果を返す問題は REA のバージョン・対象の種類・再現手順を添えて[上流](https://github.com/morluto/rea/issues)へお願いします。
 </details>
 
 <details>
@@ -285,11 +419,18 @@ scripts/
 desktop/               manifest.json · build-mcpb.sh · build-mcpb.ps1（Claude Desktop .mcpb）
 remote/                Dockerfile · docker-compose.yml · docker-compose.oauth.yml · oauth-gateway/
 skills/                reverse-engineer-anything · rea-workflows · rea-anywhere
-commands/              analyze · report · doctor · capabilities · install-engines · why
+commands/              start · analyze · report · doctor · capabilities · install-engines · setup-mcp · why
 docs/                  STABILITY.md · img/（generate.py が README の図を生成）
 .github/workflows/     ci.yml（3 OS selftest）· release.yml（v* タグで 3 OS 署名済み .mcpb）
 ```
 </details>
+
+## ドキュメント
+
+- [REA ガイド](https://rea.tools/ja/guides/) — 図解付きの手順ごとの解析
+- 上流のドキュメント：[目次](https://github.com/morluto/rea/blob/main/docs/index.md) · [インストールとプロバイダ](https://github.com/morluto/rea/blob/main/docs/installation.md) · [CLI と Evidence](https://github.com/morluto/rea/blob/main/docs/cli.md) · [MCP コントラクト](https://github.com/morluto/rea/blob/main/docs/mcp-contracts.md)
+- このプラグイン：[対象別プレイブック](skills/rea-workflows/SKILL.md) · [環境別の運用メモ](skills/rea-anywhere/SKILL.md) · [安定性の約束](docs/STABILITY.md) · [リモートアプライアンス](remote/README.md)
+- 問題の報告：プラグイン → [このリポジトリの issue](https://github.com/NoLucas/REA-for-Claude/issues) · REA のツール → [上流の issue](https://github.com/morluto/rea/issues)
 
 ## コントリビューション
 
